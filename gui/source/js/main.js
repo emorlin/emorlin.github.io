@@ -4,7 +4,7 @@ var bookClubApp = new Vue({
   data: {
     spaceId: "cdz6eysa4lme",
     accessToken: "VoJLz9Wgu5ZR_2oKTnQmns2ApuKjUNpAIgNWJr0lMgM",
-    books:""
+    books: "",
   },
   created: function () {},
   mounted: function () {
@@ -15,7 +15,7 @@ var bookClubApp = new Vue({
 
     client
       .getEntries()
-      .then((response) =>  this.books=response.items)
+      .then((response) => (this.books = response.items))
       .catch(console.error);
   },
   computed: {},
