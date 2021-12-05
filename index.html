@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+  <head>
+    <meta charset="utf-8" />
+    <title>Bokklubb</title>
+    <meta name="description" content="Bokklubb" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- open graph metatags-->
+    <meta property="og:url" content="delningslänken" />
+    <!--ändra denna (og:type) beroende på sidtyp eller vad som  delas. -->
+    <meta property="og:type" content="article eller website eller song/product/movie/book" />
+    <meta property="og:title" content="Sidans titel" />
+    <meta property="og:description" content="sidbeskrivning" />
+    <meta property="og:site_name" content="Site Name" />
+    <meta property="og:image" content="bildurl" />
+
+    <!--favicons MADE WITH THIS TOOL http://www.favicomatic.com-->
+    <link rel="apple-touch-icon" sizes="57x57" href="/gui/images/favicons/apple-touch-icon-57x57.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="/gui/images/favicons/apple-touch-icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/gui/images/favicons/apple-touch-icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/gui/images/favicons/apple-touch-icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="60x60" href="/gui/images/favicons/apple-touch-icon-60x60.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/gui/images/favicons/apple-touch-icon-120x120.png" />
+    <link rel="apple-touch-icon" sizes="76x76" href="/gui/images/favicons/apple-touch-icon-76x76.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/gui/images/favicons/apple-touch-icon-152x152.png" />
+    <link rel="icon" type="image/png" href="/gui/images/favicons/favicon-196x196.png" sizes="196x196" />
+    <link rel="icon" type="image/png" href="/gui/images/favicons/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/png" href="/gui/images/favicons/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/gui/images/favicons/favicon-16x16.png" sizes="16x16" />
+    <link rel="icon" type="image/png" href="/gui/images/favicons/favicon-128.png" sizes="128x128" />
+
+    <!-- medadata för Microsoft Edge? -->
+    <meta name="application-name" content="Bokklubb boilerplate" />
+    <meta name="msapplication-TileColor" content="#FFFFFF" />
+    <meta name="msapplication-TileImage" content="mstile-144x144.png" />
+    <meta name="msapplication-square70x70logo" content="mstile-70x70.png" />
+    <meta name="msapplication-square150x150logo" content="mstile-150x150.png" />
+    <meta name="msapplication-wide310x150logo" content="mstile-310x150.png" />
+    <meta name="msapplication-square310x310logo" content="mstile-310x310.png" />
+
+    <!-- style sheets -->
+    <link rel="stylesheet" href="/gui/css/main.css" />
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+  </head>
+
+  <body>
+    <div id="bookClubApp">
+      <li v-for="book in books">{{book.fields.bookTitle}}</li>
+    </div>
+    <script src="/gui/js/vendor/contentful.js"></script>
+    <script src="/gui/js/main.js"></script>
+  </body>
+
+</html>
