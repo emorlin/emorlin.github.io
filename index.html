@@ -114,7 +114,7 @@
         <table>
           <thead>
             <tr>
-              <th>Titel</th>
+              <th v-on:click="sort('bookTitle')">Titel</th>
               <th>Författare</th>
               <th>Läst</th>
               <th>Snittbetyg</th>
@@ -128,17 +128,17 @@
           </thead>
           <tbody>
             <tr v-for="book in books">
-              <td>{{book.fields.bookTitle}}</td>
-              <td>{{book.fields.author}}</td>
-              <td>{{book.fields.readDate}}</td>
-              <td>    {{ ((book.fields.tomasGrade + book.fields.mathiasGrade +
-              book.fields.eriksGrade)/3).toFixed(2) }}</td>
-              <td>{{book.fields.tomasGrade}}</td>
-              <td>{{book.fields.mathiasGrade}}</td>
-              <td>{{book.fields.eriksGrade}}</td>
-              <td>{{book.fields.goodreadGrade}}</td>
-              <td>{{book.fields.pages}}</td>
-              <!--<td>{{book.fields.authorsSex}}</td>-->
+              <td>{{book.bookTitle}}</td>
+              <td>{{book.author}}</td>
+              <td>{{book.readDate}}</td>
+              <td>    {{ ((book.tomasGrade + book.mathiasGrade +
+              book.eriksGrade)/3).toFixed(2) }}</td>
+              <td>{{book.tomasGrade}}</td>
+              <td>{{book.mathiasGrade}}</td>
+              <td>{{book.eriksGrade}}</td>
+              <td>{{book.goodreadGrade}}</td>
+              <td>{{book.pages}}</td>
+              <!--<td>{{book.authorsSex}}</td>-->
             </tr>
           </tbody>
         </table>
