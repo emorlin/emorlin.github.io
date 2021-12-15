@@ -8,7 +8,8 @@ var bookClubApp = new Vue({
     booksRaw: "",
     books: "",
     sortorder: "asc",
-    sortByField: "readDate"
+    sortByField: "readDate",
+    showBooksBy: "All"
   },
   created: function created() {},
   mounted: function mounted() {

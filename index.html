@@ -111,24 +111,94 @@
   <body>
     <div id="bookClubApp">
       <div class="container">
+        <h1>Lästa böcker</h1>
+        <div class="row">
+          <div class="four columns">
+            <label for="showBooksBy">Böcker valda av:</label>
+            <select
+              v-model="showBooksBy"
+              name="showBooksBy"
+              id="showBooksBy"
+            >
+              <option value="All">Alla</option>
+              <option value="Tomas">Tomas</option>
+              <option value="Mathias">Mathias</option>
+              <option value="Erik">Erik</option>
+            </select>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>
-              <th class="readDate" :class="sortByField==='readDate' ? this.sortorder : ''" v-on:click="sort('readDate')">Läst</th>
-              <th :class="sortByField==='pickedBy' ? this.sortorder : ''" v-on:click="sort('pickedBy')">Vald av</th>
-              <th :class="sortByField==='bookTitle' ? this.sortorder : ''" v-on:click="sort('bookTitle')">Titel</th>
-              <th :class="sortByField==='author' ? this.sortorder : ''" v-on:click="sort('author')">Författare</th>
-              <th :class="sortByField==='avgGrade' ? this.sortorder : ''" v-on:click="sort('avgGrade')">Snittbetyg</th>
-              <th :class="sortByField==='tomasGrade' ? this.sortorder : ''" v-on:click="sort('tomasGrade')">Tomas betyg</th>
-              <th :class="sortByField==='mathiasGrade' ? this.sortorder : ''" v-on:click="sort('mathiasGrade')">Mathias betyg</th>
-              <th :class="sortByField==='eriksGrade' ? this.sortorder : ''" v-on:click="sort('bookTitle')">Eriks betyg</th>
-              <th :class="sortByField==='goodreadGrade' ? this.sortorder : ''" v-on:click="sort('eriksGrade')">Goodreads betyg</th>
-              <th :class="sortByField==='pages' ? this.sortorder : ''" v-on:click="sort('pages')">Sidantal</th>
+              <th
+                class="readDate"
+                :class="sortByField==='readDate' ? this.sortorder : ''"
+                v-on:click="sort('readDate')"
+              >
+                Läst
+              </th>
+              <th
+                :class="sortByField==='pickedBy' ? this.sortorder : ''"
+                v-on:click="sort('pickedBy')"
+              >
+                Vald av
+              </th>
+              <th
+                :class="sortByField==='bookTitle' ? this.sortorder : ''"
+                v-on:click="sort('bookTitle')"
+              >
+                Titel
+              </th>
+              <th
+                :class="sortByField==='author' ? this.sortorder : ''"
+                v-on:click="sort('author')"
+              >
+                Författare
+              </th>
+              <th
+                :class="sortByField==='avgGrade' ? this.sortorder : ''"
+                v-on:click="sort('avgGrade')"
+              >
+                Snittbetyg
+              </th>
+              <th
+                :class="sortByField==='tomasGrade' ? this.sortorder : ''"
+                v-on:click="sort('tomasGrade')"
+              >
+                Tomas betyg
+              </th>
+              <th
+                :class="sortByField==='mathiasGrade' ? this.sortorder : ''"
+                v-on:click="sort('mathiasGrade')"
+              >
+                Mathias betyg
+              </th>
+              <th
+                :class="sortByField==='eriksGrade' ? this.sortorder : ''"
+                v-on:click="sort('bookTitle')"
+              >
+                Eriks betyg
+              </th>
+              <th
+                :class="sortByField==='goodreadGrade' ? this.sortorder : ''"
+                v-on:click="sort('eriksGrade')"
+              >
+                Goodreads betyg
+              </th>
+              <th
+                :class="sortByField==='pages' ? this.sortorder : ''"
+                v-on:click="sort('pages')"
+              >
+                Sidantal
+              </th>
               <!--<th>Kön</th>-->
             </tr>
           </thead>
           <tbody>
-            <tr v-for="book in books">
+            <tr
+              v-if="showBooksBy === 'All' || showBooksBy === book.pickedBy"
+              v-for="book in books"
+            >
               <td class="readDate">{{book.readDate}}</td>
               <td>{{book.pickedBy}}</td>
               <td>{{book.bookTitle}}</td>
