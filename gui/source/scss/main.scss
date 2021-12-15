@@ -2,21 +2,7 @@
 @use 'skeleton';
 
 
-.asc {
-  position: relative;
-  padding-right: 12px;
-  line-height: 1;
-  &:after {
-    position: absolute;
-    top:50%;
-    margin-top: -6px;
-    margin-left: 4px;
-    display: inline-block;
-    content:"▾";
-    transform: rotate(0deg);
-    }
-}
-
+.asc,
 .desc {
   position: relative;
   padding-right: 12px;
@@ -26,9 +12,23 @@
     top:50%;
     margin-top: -6px;
     margin-left: 4px;
-
     display: inline-block;
     content:"▾";
+  }
+}
+
+.asc {
+  &:after {
+    transform: rotate(0deg);
+    }
+}
+
+.desc {
+  &:after {
     transform: rotate(180deg);
   }
+}
+
+.readDate {
+  white-space: nowrap;
 }

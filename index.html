@@ -114,10 +114,11 @@
         <table>
           <thead>
             <tr>
+              <th class="readDate" :class="sortByField==='readDate' ? this.sortorder : ''" v-on:click="sort('readDate')">Läst</th>
+              <th :class="sortByField==='pickedBy' ? this.sortorder : ''" v-on:click="sort('pickedBy')">Vald av</th>
               <th :class="sortByField==='bookTitle' ? this.sortorder : ''" v-on:click="sort('bookTitle')">Titel</th>
               <th :class="sortByField==='author' ? this.sortorder : ''" v-on:click="sort('author')">Författare</th>
-              <th :class="sortByField==='readDate' ? this.sortorder : ''" v-on:click="sort('readDate')">Läst</th>
-              <th>Snittbetyg</th>
+              <th :class="sortByField==='avgGrade' ? this.sortorder : ''" v-on:click="sort('avgGrade')">Snittbetyg</th>
               <th :class="sortByField==='tomasGrade' ? this.sortorder : ''" v-on:click="sort('tomasGrade')">Tomas betyg</th>
               <th :class="sortByField==='mathiasGrade' ? this.sortorder : ''" v-on:click="sort('mathiasGrade')">Mathias betyg</th>
               <th :class="sortByField==='eriksGrade' ? this.sortorder : ''" v-on:click="sort('bookTitle')">Eriks betyg</th>
@@ -128,11 +129,11 @@
           </thead>
           <tbody>
             <tr v-for="book in books">
+              <td class="readDate">{{book.readDate}}</td>
+              <td>{{book.pickedBy}}</td>
               <td>{{book.bookTitle}}</td>
               <td>{{book.author}}</td>
-              <td>{{book.readDate}}</td>
-              <td>    {{ ((book.tomasGrade + book.mathiasGrade +
-              book.eriksGrade)/3).toFixed(2) }}</td>
+              <td>{{book.avgGrade}}</td>
               <td>{{book.tomasGrade}}</td>
               <td>{{book.mathiasGrade}}</td>
               <td>{{book.eriksGrade}}</td>

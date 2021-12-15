@@ -28,25 +28,33 @@ var bookClubApp = new Vue({
   watch: {
     booksRaw: function booksRaw() {
       this.books = this.booksRaw.map(function (_ref) {
-        var fields = _ref.fields;
-        return fields;
+        return _ref.fields;
       });
+      this.books.forEach(
+        (book) =>{
+          book.avgGrade = (
+            (book.tomasGrade + book.mathiasGrade + book.eriksGrade) /
+            3
+          ).toFixed(2);
+
+          book.readDate = book.readDate.substring(0, book.readDate.length - 3);
+        }
+      );
       bookClubApp.sort(this.sortByField);
     },
   },
   methods: {
     sort: function sort(field) {
+      if (field !== this.sortByField) {
+        this.sortorder = "asc";
+        this.sortByField = field;
+      } else {
+        this.sortorder === "desc"
+          ? (this.sortorder = "asc")
+          : (this.sortorder = "desc");
+      }
 
-        if (field !== this.sortByField) {
-          this.sortorder="asc";
-          this.sortByField = field;
-        } else {
-          this.sortorder === "desc"
-            ? (this.sortorder = "asc")
-            : (this.sortorder = "desc");
-        }
-
-        this.books.sort(this.sortBy(field));
+      this.books.sort(this.sortBy(field));
     },
     sortBy: function sortBy(property) {
       console.log("sorting");
