@@ -115,14 +115,14 @@
           <thead>
             <tr>
               <th v-on:click="sort('bookTitle')">Titel</th>
-              <th>Författare</th>
-              <th>Läst</th>
+              <th v-on:click="sort('author')">Författare</th>
+              <th v-on:click="sort('readDate')">Läst</th>
               <th>Snittbetyg</th>
-              <th>Tomas betyg</th>
-              <th>Mathias betyg</th>
-              <th>Eriks betyg</th>
-              <th>Goodreads betyg</th>
-              <th>Sidantal</th>
+              <th v-on:click="sort('tomasGrade')">Tomas betyg</th>
+              <th v-on:click="sort('mathiasGrade')">Mathias betyg</th>
+              <th v-on:click="sort('bookTitle')">Eriks betyg</th>
+              <th v-on:click="sort('eriksGrade')">Goodreads betyg</th>
+              <th v-on:click="sort('pages')">Sidantal</th>
               <!--<th>Kön</th>-->
             </tr>
           </thead>
