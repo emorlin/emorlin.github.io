@@ -107,7 +107,6 @@
     <link rel="stylesheet" href="/gui/css/main.css" />
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
   </head>
-
   <body>
     <div id="bookClubApp">
       <div class="container">
@@ -121,10 +120,10 @@
               name="showBooksBy"
               id="showBooksBy"
             >
-              <option value="All">Alla</option>
-              <option value="Tomas">Tomas</option>
-              <option value="Mathias">Mathias</option>
-              <option value="Erik">Erik</option>
+              <option value="All">Alla ({{books.length}})</option>
+              <option value="Tomas">Tomas ({{bookCount.tomas}})</option>
+              <option value="Mathias">Mathias ({{bookCount.mathias}})</option>
+              <option value="Erik">Erik ({{bookCount.erik}})</option>
             </select>
           </div>
         </div>
@@ -176,13 +175,13 @@
               </th>
               <th
                 :class="sortByField==='eriksGrade' ? this.sortorder : ''"
-                v-on:click="sort('bookTitle')"
+                v-on:click="sort('eriksGrade')"
               >
                 Eriks betyg
               </th>
               <th
                 :class="sortByField==='goodreadGrade' ? this.sortorder : ''"
-                v-on:click="sort('eriksGrade')"
+                v-on:click="sort('goodreadGrade')"
               >
                 Goodreads betyg
               </th>

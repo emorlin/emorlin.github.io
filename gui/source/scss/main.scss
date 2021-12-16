@@ -1,6 +1,9 @@
 @use 'normalize';
 @use 'skeleton';
 
+th {
+  line-height: 1;
+}
 
 .asc,
 .desc {

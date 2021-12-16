@@ -9,7 +9,12 @@ var bookClubApp = new Vue({
     books: "",
     sortorder: "asc",
     sortByField: "readDate",
-    showBooksBy:"All"
+    showBooksBy:"All",
+    bookCount: {
+      erik:"",
+      mathias:"",
+      tomas:""
+    }
   },
   created: function created() {},
   mounted: function mounted() {
@@ -38,8 +43,20 @@ var bookClubApp = new Vue({
         ).toFixed(2);
 
         book.readDate = book.readDate.substring(0, book.readDate.length - 3);
+
       });
       bookClubApp.sort(this.sortByField);
+    },
+    books: function(){
+      this.bookCount.erik = this.books.filter((val) => {
+        return val.pickedBy === "Erik";
+      }).length;
+      this.bookCount.tomas = this.books.filter((val) => {
+        return val.pickedBy === "Tomas";
+      }).length;
+      this.bookCount.mathias = this.books.filter((val) => {
+        return val.pickedBy === "Mathias";
+      }).length;
     },
   },
   methods: {
