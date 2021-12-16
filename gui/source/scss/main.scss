@@ -1,6 +1,13 @@
 @use 'normalize';
 @use 'skeleton';
 
+
+body {
+  padding:40px;
+}
+h2 {
+  font-size:1.8rem
+}
 th {
   line-height: 1;
 }

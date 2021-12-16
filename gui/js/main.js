@@ -10,6 +10,7 @@ var bookClubApp = new Vue({
     sortorder: "asc",
     sortByField: "readDate",
     showBooksBy: "All",
+    showFilter: false,
     bookCount: {
       erik: "",
       mathias: "",
@@ -28,7 +29,55 @@ var bookClubApp = new Vue({
       return _this.booksRaw = response.items;
     }).catch(console.error);
   },
-  computed: {},
+  computed: {
+    recievedScore: function recievedScore() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0
+      };
+      this.books.forEach(function (book) {
+        if (book.pickedBy === "Erik") {
+          score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Tomas") {
+          score.Tomas += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Mathias") {
+          score.Mathias += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        }
+      });
+      return this.sortByValue(score);
+    },
+    recievedScoreNotSelf: function recievedScoreNotSelf() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0
+      };
+      this.books.forEach(function (book) {
+        if (book.pickedBy === "Erik") {
+          score.Erik += book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Tomas") {
+          score.Tomas += book.eriksGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Mathias") {
+          score.Mathias += book.tomasGrade + book.mathiasGrade;
+        }
+      });
+      return this.sortByValue(score);
+    },
+    givenScores: function givenScores() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0
+      };
+      this.books.forEach(function (book) {
+        score.Erik += book.eriksGrade;
+        score.Tomas += book.tomasGrade;
+        score.Mathias += book.mathiasGrade;
+      });
+      return this.sortByValue(score);
+    }
+  },
   watch: {
     booksRaw: function booksRaw() {
       this.books = this.booksRaw.map(function (_ref) {
@@ -53,6 +102,22 @@ var bookClubApp = new Vue({
     }
   },
   methods: {
+    sortByValue: function sortByValue(obj) {
+      var sortable = [];
+
+      for (var name in obj) {
+        sortable.push([name, obj[name]]);
+      }
+
+      sortable.sort(function (a, b) {
+        return b[1] - a[1];
+      });
+      var objSorted = {};
+      sortable.forEach(function (item) {
+        objSorted[item[0]] = item[1];
+      });
+      return objSorted;
+    },
     sort: function sort(field) {
       if (field !== this.sortByField) {
         this.sortorder = "asc";

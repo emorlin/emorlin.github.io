@@ -113,7 +113,7 @@
         <h1>Lästa böcker</h1>
         <div class="row">
           <div class="four columns">
-            <label for="showBooksBy">Böcker valda av:</label>
+            <label for="showBooksBy">Visa böcker valda av:</label>
             <select
               class="u-full-width"
               v-model="showBooksBy"
@@ -125,6 +125,35 @@
               <option value="Mathias">Mathias ({{bookCount.mathias}})</option>
               <option value="Erik">Erik ({{bookCount.erik}})</option>
             </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="twelve columns">
+            <button v-on:click="showFilter = !showFilter">
+              Visa statistik
+            </button>
+          </div>
+        </div>
+        <div v-if="showFilter" class="row">
+          <div class="four columns">
+            <h2>Utdelade poäng</h2>
+            <ul>
+              <li v-for="(value, key) in givenScores">{{key}}: {{value}}</li>
+            </ul>
+          </div>
+          <div class="four columns">
+            <h2>Flest mottagna poäng (borträknat egna poäng)</h2>
+            <ul>
+              <li v-for="(value, key) in recievedScoreNotSelf">
+                {{key}}: {{value}}
+              </li>
+            </ul>
+          </div>
+          <div class="four columns">
+            <h2>Flest mottagna poäng (inklusive egna poäng)</h2>
+            <ul>
+              <li v-for="(value, key) in recievedScore">{{key}}: {{value}}</li>
+            </ul>
           </div>
         </div>
         <table>
