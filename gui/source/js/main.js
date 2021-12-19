@@ -6,6 +6,7 @@ var bookClubApp = new Vue({
     spaceId: "cdz6eysa4lme",
     accessToken: "VoJLz9Wgu5ZR_2oKTnQmns2ApuKjUNpAIgNWJr0lMgM",
     booksRaw: "",
+    booksFixed: "",
     books: "",
     sortorder: "asc",
     sortByField: "readDate",
@@ -13,6 +14,7 @@ var bookClubApp = new Vue({
     showFilter: false,
     fullRoundsOnly: true,
     bookCount: {
+      all:"",
       erik: "",
       mathias: "",
       tomas: "",
@@ -20,7 +22,8 @@ var bookClubApp = new Vue({
   },
   created: function created() {},
   mounted: function mounted() {
-    var _this = this;
+    var that = this;
+
     var client = contentful.createClient({
       space: this.spaceId,
       accessToken: this.accessToken,
@@ -28,106 +31,112 @@ var bookClubApp = new Vue({
     client
       .getEntries()
       .then(function (response) {
-        return (_this.booksRaw = response.items);
+        return (that.booksRaw = response.items);
       })
       .catch(console.error);
   },
   computed: {
-    recievedScore: function () {
-      let score = {
-        Erik: 0,
-        Tomas: 0,
-        Mathias: 0,
-      };
-      var that = this;
-      this.books.forEach(function (book) {
-        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
-          if (book.pickedBy === "Erik") {
-            score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
-          } else if (book.pickedBy === "Tomas") {
-            score.Tomas +=
-              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
-          } else if (book.pickedBy === "Mathias") {
-            score.Mathias +=
-              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
-          }
-        }
-      });
-
-      return this.sortByValue(score);
-    },
-    recievedScoreNotSelf: function () {
-      let score = {
-        Erik: 0,
-        Tomas: 0,
-        Mathias: 0,
-      };
-      var that = this;
-      this.books.forEach(function (book) {
-        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
-          if (book.pickedBy === "Erik") {
-            score.Erik += book.tomasGrade + book.mathiasGrade;
-          } else if (book.pickedBy === "Tomas") {
-            score.Tomas += book.eriksGrade + book.mathiasGrade;
-          } else if (book.pickedBy === "Mathias") {
-            score.Mathias += book.tomasGrade + book.mathiasGrade;
-          }
-        }
-      });
-
-      return this.sortByValue(score);
-    },
-    givenScores: function () {
+    recievedScore: function recievedScore() {
       var score = {
         Erik: 0,
         Tomas: 0,
         Mathias: 0,
       };
-      var that = this;
+
       this.books.forEach(function (book) {
-        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
-          score.Erik += book.eriksGrade;
-          score.Tomas += book.tomasGrade;
-          score.Mathias += book.mathiasGrade;
+        if (book.pickedBy === "Erik") {
+          score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Tomas") {
+          score.Tomas += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Mathias") {
+          score.Mathias +=
+            book.eriksGrade + book.tomasGrade + book.mathiasGrade;
         }
       });
+      return this.sortByValue(score);
+    },
+    recievedScoreNotSelf: function recievedScoreNotSelf() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0,
+      };
 
+      this.books.forEach(function (book) {
+        if (book.pickedBy === "Erik") {
+          score.Erik += book.tomasGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Tomas") {
+          score.Tomas += book.eriksGrade + book.mathiasGrade;
+        } else if (book.pickedBy === "Mathias") {
+          score.Mathias += book.tomasGrade + book.mathiasGrade;
+        }
+      });
+      return this.sortByValue(score);
+    },
+    givenScores: function givenScores() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0,
+      };
+
+      this.books.forEach(function (book) {
+        score.Erik += book.eriksGrade;
+        score.Tomas += book.tomasGrade;
+        score.Mathias += book.mathiasGrade;
+      });
       return this.sortByValue(score);
     },
   },
   watch: {
-    booksRaw: function () {
-      this.books = this.booksRaw.map(function (_ref) {
+    showBooksBy: function () {
+      this.books = this.booksFixed;
+      var that = this;
+      this.books = this.booksFixed.filter(function (_ref) {
+        if (_ref.pickedBy === that.showBooksBy) {
+          return _ref;
+        } else if (that.showBooksBy === "All") {
+          return _ref;
+        }
+      });
+    },
+    booksRaw: function booksRaw() {
+      this.booksFixed = this.booksRaw.map(function (_ref) {
         return _ref.fields;
       });
-      this.books.forEach((book) => {
+      this.booksFixed.forEach(function (book) {
         book.avgGrade = (
           (book.tomasGrade + book.mathiasGrade + book.eriksGrade) /
           3
         ).toFixed(2);
-
         book.readDate = book.readDate.substring(0, book.readDate.length - 3);
       });
+
+      this.books = this.booksFixed;
       bookClubApp.sort(this.sortByField);
     },
-    books: function () {
-      this.bookCount.erik = this.books.filter((val) => {
+    booksFixed: function books() {
+      this.bookCount.erik = this.booksFixed.filter(function (val) {
         return val.pickedBy === "Erik";
       }).length;
-      this.bookCount.tomas = this.books.filter((val) => {
+      this.bookCount.tomas = this.booksFixed.filter(function (val) {
         return val.pickedBy === "Tomas";
       }).length;
-      this.bookCount.mathias = this.books.filter((val) => {
+      this.bookCount.mathias = this.booksFixed.filter(function (val) {
         return val.pickedBy === "Mathias";
       }).length;
+      this.bookCount.all =
+        this.bookCount.erik + this.bookCount.tomas + this.bookCount.mathias;
     },
   },
   methods: {
-    sortByValue: function (obj) {
+    sortByValue: function sortByValue(obj) {
       var sortable = [];
+
       for (var name in obj) {
         sortable.push([name, obj[name]]);
       }
+
       sortable.sort(function (a, b) {
         return b[1] - a[1];
       });
@@ -149,10 +158,9 @@ var bookClubApp = new Vue({
 
       this.books.sort(this.sortBy(field));
     },
-    sortBy: function (property) {
+    sortBy: function sortBy(property) {
       console.log("sorting");
       var that = this;
-
       return function (a, b) {
         var varA =
           typeof a[property] === "string"
