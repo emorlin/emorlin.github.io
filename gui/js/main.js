@@ -15,27 +15,30 @@ var bookClubApp = new Vue({
     bookCount: {
       erik: "",
       mathias: "",
-      tomas: ""
-    }
+      tomas: "",
+    },
   },
   created: function created() {},
   mounted: function mounted() {
-    var _this = this;
+    var that = this;
 
     var client = contentful.createClient({
       space: this.spaceId,
-      accessToken: this.accessToken
+      accessToken: this.accessToken,
     });
-    client.getEntries().then(function (response) {
-      return _this.booksRaw = response.items;
-    }).catch(console.error);
+    client
+      .getEntries()
+      .then(function (response) {
+        return (that.booksRaw = response.items);
+      })
+      .catch(console.error);
   },
   computed: {
     recievedScore: function recievedScore() {
       var score = {
         Erik: 0,
         Tomas: 0,
-        Mathias: 0
+        Mathias: 0,
       };
       var that = this;
       this.books.forEach(function (book) {
@@ -43,9 +46,11 @@ var bookClubApp = new Vue({
           if (book.pickedBy === "Erik") {
             score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
           } else if (book.pickedBy === "Tomas") {
-            score.Tomas += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+            score.Tomas +=
+              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
           } else if (book.pickedBy === "Mathias") {
-            score.Mathias += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+            score.Mathias +=
+              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
           }
         }
       });
@@ -55,7 +60,7 @@ var bookClubApp = new Vue({
       var score = {
         Erik: 0,
         Tomas: 0,
-        Mathias: 0
+        Mathias: 0,
       };
       var that = this;
       this.books.forEach(function (book) {
@@ -75,7 +80,7 @@ var bookClubApp = new Vue({
       var score = {
         Erik: 0,
         Tomas: 0,
-        Mathias: 0
+        Mathias: 0,
       };
       var that = this;
       this.books.forEach(function (book) {
@@ -86,15 +91,30 @@ var bookClubApp = new Vue({
         }
       });
       return this.sortByValue(score);
-    }
+    },
   },
   watch: {
+    showBooksBy: function () {
+      return false;
+      var that = this;
+      this.books = this.booksRaw.map(function (_ref) {
+        console.log(_ref.fields.pickedBy);
+        if (that.showBooksBy === "All") {
+          return _ref.fields;
+        } else if (_ref.fields.pickedBy === that.showBooksBy) {
+          return _ref.fields;
+        }
+      });
+    },
     booksRaw: function booksRaw() {
       this.books = this.booksRaw.map(function (_ref) {
         return _ref.fields;
       });
       this.books.forEach(function (book) {
-        book.avgGrade = ((book.tomasGrade + book.mathiasGrade + book.eriksGrade) / 3).toFixed(2);
+        book.avgGrade = (
+          (book.tomasGrade + book.mathiasGrade + book.eriksGrade) /
+          3
+        ).toFixed(2);
         book.readDate = book.readDate.substring(0, book.readDate.length - 3);
       });
       bookClubApp.sort(this.sortByField);
@@ -109,7 +129,7 @@ var bookClubApp = new Vue({
       this.bookCount.mathias = this.books.filter(function (val) {
         return val.pickedBy === "Mathias";
       }).length;
-    }
+    },
   },
   methods: {
     sortByValue: function sortByValue(obj) {
@@ -133,7 +153,9 @@ var bookClubApp = new Vue({
         this.sortorder = "asc";
         this.sortByField = field;
       } else {
-        this.sortorder === "desc" ? this.sortorder = "asc" : this.sortorder = "desc";
+        this.sortorder === "desc"
+          ? (this.sortorder = "asc")
+          : (this.sortorder = "desc");
       }
 
       this.books.sort(this.sortBy(field));
@@ -142,12 +164,19 @@ var bookClubApp = new Vue({
       console.log("sorting");
       var that = this;
       return function (a, b) {
-        var varA = typeof a[property] === "string" ? a[property].toUpperCase() : a[property];
-        var varB = typeof b[property] === "string" ? b[property].toUpperCase() : b[property];
+        var varA =
+          typeof a[property] === "string"
+            ? a[property].toUpperCase()
+            : a[property];
+        var varB =
+          typeof b[property] === "string"
+            ? b[property].toUpperCase()
+            : b[property];
         var comparison = 0;
-        if (varA > varB) comparison = 1;else if (varA < varB) comparison = -1;
+        if (varA > varB) comparison = 1;
+        else if (varA < varB) comparison = -1;
         return that.sortorder === "desc" ? comparison * -1 : comparison;
       };
-    }
-  }
+    },
+  },
 });
