@@ -128,6 +128,18 @@
           </div>
         </div>
         <div class="row">
+          <div class="four columns">
+            <label for="fullRoundsOnly">
+              <input
+                id="fullRoundsOnly"
+                v-model="fullRoundsOnly"
+                type="checkbox"
+              />
+              Visa bara fulla rundor</label
+            >
+          </div>
+        </div>
+        <div class="row">
           <div class="twelve columns">
             <button v-on:click="showFilter = !showFilter">
               Visa statistik

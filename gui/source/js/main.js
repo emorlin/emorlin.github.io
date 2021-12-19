@@ -11,6 +11,7 @@ var bookClubApp = new Vue({
     sortByField: "readDate",
     showBooksBy: "All",
     showFilter: false,
+    fullRoundsOnly: true,
     bookCount: {
       erik: "",
       mathias: "",
@@ -38,14 +39,18 @@ var bookClubApp = new Vue({
         Tomas: 0,
         Mathias: 0,
       };
+      var that = this;
       this.books.forEach(function (book) {
-        if (book.pickedBy === "Erik") {
-          score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
-        } else if (book.pickedBy === "Tomas") {
-          score.Tomas += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
-        } else if (book.pickedBy === "Mathias") {
-          score.Mathias +=
-            book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
+          if (book.pickedBy === "Erik") {
+            score.Erik += book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+          } else if (book.pickedBy === "Tomas") {
+            score.Tomas +=
+              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+          } else if (book.pickedBy === "Mathias") {
+            score.Mathias +=
+              book.eriksGrade + book.tomasGrade + book.mathiasGrade;
+          }
         }
       });
 
@@ -57,13 +62,16 @@ var bookClubApp = new Vue({
         Tomas: 0,
         Mathias: 0,
       };
+      var that = this;
       this.books.forEach(function (book) {
-        if (book.pickedBy === "Erik") {
-          score.Erik += book.tomasGrade + book.mathiasGrade;
-        } else if (book.pickedBy === "Tomas") {
-          score.Tomas += book.eriksGrade + book.mathiasGrade;
-        } else if (book.pickedBy === "Mathias") {
-          score.Mathias += book.tomasGrade + book.mathiasGrade;
+        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
+          if (book.pickedBy === "Erik") {
+            score.Erik += book.tomasGrade + book.mathiasGrade;
+          } else if (book.pickedBy === "Tomas") {
+            score.Tomas += book.eriksGrade + book.mathiasGrade;
+          } else if (book.pickedBy === "Mathias") {
+            score.Mathias += book.tomasGrade + book.mathiasGrade;
+          }
         }
       });
 
@@ -75,10 +83,13 @@ var bookClubApp = new Vue({
         Tomas: 0,
         Mathias: 0,
       };
+      var that = this;
       this.books.forEach(function (book) {
-        score.Erik += book.eriksGrade;
-        score.Tomas += book.tomasGrade;
-        score.Mathias += book.mathiasGrade;
+        if (book.pickedBy === that.showBooksBy || that.showBooksBy === "All") {
+          score.Erik += book.eriksGrade;
+          score.Tomas += book.tomasGrade;
+          score.Mathias += book.mathiasGrade;
+        }
       });
 
       return this.sortByValue(score);
@@ -112,7 +123,7 @@ var bookClubApp = new Vue({
     },
   },
   methods: {
-    sortByValue: function(obj){
+    sortByValue: function (obj) {
       var sortable = [];
       for (var name in obj) {
         sortable.push([name, obj[name]]);
