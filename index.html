@@ -247,13 +247,13 @@
               >
                 Goodreads betyg
               </th>
+              <th>Diff. betyg</th>
               <th
                 :class="sortByField==='pages' ? this.sortorder : ''"
                 v-on:click="sort('pages')"
               >
                 Sidantal
               </th>
-              <!--<th>Kön</th>-->
             </tr>
           </thead>
           <tbody>
@@ -270,6 +270,10 @@
               <td>{{book.mathiasGrade}}</td>
               <td>{{book.eriksGrade}}</td>
               <td>{{book.goodreadGrade}}</td>
+              <td>
+                {{ (((book.tomasGrade + book.mathiasGrade +
+                book.eriksGrade)/3) - book.goodreadGrade).toFixed(2) }}
+              </td>
               <td>{{book.pages}}</td>
               <!--<td>{{book.authorsSex}}</td>-->
             </tr>
