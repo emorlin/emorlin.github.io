@@ -135,7 +135,7 @@
                 v-model="fullRoundsOnly"
                 type="checkbox"
               />
-              Visa bara fulla rundor</label
+              Visa jämnt lästa antal</label
             >
           </div>
         </div>
@@ -147,26 +147,47 @@
           </div>
         </div>
         <div v-if="showFilter" class="row">
-          <div class="four columns">
+          <div class="six columns">
             <h2>Utdelade poäng</h2>
             <ul>
               <li v-for="(value, key) in givenScores">{{key}}: {{value}}</li>
             </ul>
           </div>
-          <div class="four columns">
-            <h2>Flest mottagna poäng (borträknat egna poäng)</h2>
+          <div class="six columns">
+            <h2>Utdelade poäng på egna böcker</h2>
+            <ul>
+              <li v-for="(value, key) in givenScoresOwnBooks">
+                {{key}}: {{value}}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div v-if="showFilter" class="row">
+          <div class="six columns">
+            <h2>Mottagna poäng (borträknat egna poäng)</h2>
             <ul>
               <li v-for="(value, key) in recievedScoreNotSelf">
                 {{key}}: {{value}}
               </li>
             </ul>
           </div>
-          <div class="four columns">
-            <h2>Flest mottagna poäng (inklusive egna poäng)</h2>
+          <div class="six columns">
+            <h2>Mottagna poäng (inklusive egna poäng)</h2>
             <ul>
               <li v-for="(value, key) in recievedScore">{{key}}: {{value}}</li>
             </ul>
           </div>
+        </div>
+        <div v-if="showFilter" class="row">
+          <div class="four columns">
+            <h2>Antal sidor valda böcker</h2>
+            <ul>
+              <li v-for="(value, key) in pages">{{key}}: {{value}}</li>
+            </ul>
+          </div>
+          <div class="four columns"></div>
+          <div class="four columns"></div>
         </div>
         <table>
           <thead>
@@ -242,8 +263,8 @@
             >
               <td class="readDate">{{book.readDate}}</td>
               <td>{{book.pickedBy}}</td>
-              <td>{{book.bookTitle}}</td>
-              <td>{{book.author}}</td>
+              <td><a :href="book.bookLink">{{book.bookTitle}}</a></td>
+              <td><a :href="book.authorLink">{{book.author}}</a></td>
               <td>{{book.avgGrade}}</td>
               <td>{{book.tomasGrade}}</td>
               <td>{{book.mathiasGrade}}</td>

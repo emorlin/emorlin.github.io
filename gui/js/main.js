@@ -78,6 +78,40 @@ var bookClubApp = new Vue({
         score.Mathias += book.mathiasGrade;
       });
       return this.sortByValue(score);
+    },
+    givenScoresOwnBooks: function givenScoresOwnBooks() {
+      var score = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0
+      };
+      this.books.forEach(function (book) {
+        if (book.pickedBy === "Erik") {
+          score.Erik += book.eriksGrade;
+        } else if (book.pickedBy === "Tomas") {
+          score.Tomas += book.tomasGrade;
+        } else if (book.pickedBy === "Mathias") {
+          score.Mathias += book.mathiasGrade;
+        }
+      });
+      return this.sortByValue(score);
+    },
+    pages: function pages() {
+      var pages = {
+        Erik: 0,
+        Tomas: 0,
+        Mathias: 0
+      };
+      this.books.forEach(function (book) {
+        if (book.pickedBy === "Erik") {
+          pages.Erik += book.pages;
+        } else if (book.pickedBy === "Tomas") {
+          pages.Tomas += book.pages;
+        } else if (book.pickedBy === "Mathias") {
+          pages.Mathias += book.pages;
+        }
+      });
+      return this.sortByValue(pages);
     }
   },
   watch: {
