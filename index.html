@@ -254,6 +254,12 @@
               >
                 Sidantal
               </th>
+              <th
+                :class="sortByField==='country' ? this.sortorder : ''"
+                v-on:click="sort('country')"
+              >
+                Land
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -271,10 +277,11 @@
               <td>{{book.eriksGrade}}</td>
               <td>{{book.goodreadGrade}}</td>
               <td>
-                {{ (((book.tomasGrade + book.mathiasGrade +
-                book.eriksGrade)/3) - book.goodreadGrade).toFixed(2) }}
+                {{ (((book.tomasGrade + book.mathiasGrade + book.eriksGrade)/3)
+                - book.goodreadGrade).toFixed(2) }}
               </td>
               <td>{{book.pages}}</td>
+              <td>{{book.country}}</td>
               <!--<td>{{book.authorsSex}}</td>-->
             </tr>
           </tbody>
