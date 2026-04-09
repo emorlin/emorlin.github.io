@@ -2,30 +2,25 @@
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Frasse the Bunny</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: #1a1a2e;
       display: flex;
-      flex-direction: column;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       font-family: 'Courier New', monospace;
       user-select: none;
-      overflow-x: hidden;
     }
     #game-container {
       display: flex;
       flex-direction: column;
       align-items: center;
-      width: 100%;
-      max-width: 640px;
     }
     #hud {
-      width: 100%;
+      width: 640px;
       height: 42px;
       background: #1e1e1e;
       border: 3px solid #555;
@@ -74,52 +69,10 @@
     }
     canvas {
       display: block;
-      width: 100%;
-      aspect-ratio: 1 / 1;
       border: 3px solid #555;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
       outline: none;
-      touch-action: none;
-    }
-    #dpad {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 14px 0 20px;
-      width: 100%;
-      max-width: 640px;
-      background: #1a1a2e;
-    }
-    .dpad-row {
-      display: flex;
-      gap: 4px;
-    }
-    .dpad-btn {
-      width: 68px;
-      height: 68px;
-      background: #252540;
-      border: 3px solid #555;
-      border-radius: 8px;
-      color: #ccc;
-      font-size: 26px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: none;
-      user-select: none;
-    }
-    .dpad-btn:active, .dpad-btn.pressed {
-      background: #2a6644;
-      border-color: #55aa77;
-      color: #fff;
-    }
-    .dpad-spacer {
-      width: 68px;
-      height: 68px;
     }
   </style>
 </head>
@@ -131,23 +84,6 @@
     <div id="score">0 poäng</div>
   </div>
   <canvas id="canvas" width="640" height="640" tabindex="0"></canvas>
-</div>
-<div id="dpad">
-  <div class="dpad-row">
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-up">▲</button>
-    <div class="dpad-spacer"></div>
-  </div>
-  <div class="dpad-row">
-    <button class="dpad-btn" id="btn-left">◀</button>
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-right">▶</button>
-  </div>
-  <div class="dpad-row">
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-down">▼</button>
-    <div class="dpad-spacer"></div>
-  </div>
 </div>
 
 <script>
@@ -626,7 +562,7 @@ function drawGameOverScreen() {
 function spawnCarrot() {
   if (carrots.length >= MAX_CARROTS) return;
   const r = Math.random();
-  const type = r < 0.10 ? 'golden' : r < 0.35 ? 'monstera' : 'normal';
+  const type = r < 0.12 ? 'golden' : r < 0.25 ? 'monstera' : 'normal';
   const m = 52;
   carrots.push({
     x: m + Math.random() * (W - m*2 - 28),
@@ -878,65 +814,28 @@ const BTN_OVER_CY   = 435;
 const BTN_HALF_W    = 135;
 const BTN_HALF_H    = 25;
 
-function canvasCoords(clientX, clientY) {
+canvas.addEventListener('click', e => {
+  canvas.focus();
   const rect = canvas.getBoundingClientRect();
-  return {
-    mx: (clientX - rect.left) * (canvas.width  / rect.width),
-    my: (clientY - rect.top)  * (canvas.height / rect.height),
-  };
-}
-
-function tryStartBtn(mx, my) {
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
   const cy = gstate === 'start' ? BTN_START_CY : BTN_OVER_CY;
   if ((gstate === 'start' || gstate === 'gameover') &&
       Math.abs(mx - W/2) < BTN_HALF_W && Math.abs(my - cy) < BTN_HALF_H) {
     startGame();
   }
-}
-
-canvas.addEventListener('click', e => {
-  canvas.focus();
-  const { mx, my } = canvasCoords(e.clientX, e.clientY);
-  tryStartBtn(mx, my);
 });
 
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  canvas.focus();
-  const t = e.touches[0];
-  const { mx, my } = canvasCoords(t.clientX, t.clientY);
-  tryStartBtn(mx, my);
-}, { passive: false });
-
 canvas.addEventListener('mousemove', e => {
-  const { mx, my } = canvasCoords(e.clientX, e.clientY);
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
   const cy = gstate === 'start' ? BTN_START_CY : BTN_OVER_CY;
   const over = (gstate === 'start' || gstate === 'gameover') &&
                Math.abs(mx - W/2) < BTN_HALF_W && Math.abs(my - cy) < BTN_HALF_H;
   if (over !== btnHover) btnHover = over;
   canvas.style.cursor = over ? 'pointer' : 'default';
 });
-
-// D-pad touch/mouse controls
-(function setupDpad() {
-  const map = {
-    'btn-up':    'ArrowUp',
-    'btn-down':  'ArrowDown',
-    'btn-left':  'ArrowLeft',
-    'btn-right': 'ArrowRight',
-  };
-  for (const [id, key] of Object.entries(map)) {
-    const btn = document.getElementById(id);
-    const press   = e => { e.preventDefault(); keys[key] = true;  btn.classList.add('pressed'); };
-    const release = e => { e.preventDefault(); keys[key] = false; btn.classList.remove('pressed'); };
-    btn.addEventListener('touchstart',  press,   { passive: false });
-    btn.addEventListener('touchend',    release, { passive: false });
-    btn.addEventListener('touchcancel', release, { passive: false });
-    btn.addEventListener('mousedown',   press);
-    btn.addEventListener('mouseup',     release);
-    btn.addEventListener('mouseleave',  release);
-  }
-})();
 
 // Focus canvas so keyboard works
 canvas.focus();
