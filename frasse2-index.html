@@ -175,13 +175,12 @@ const FOX_SPEED_BASE    = 65;    // px/s (scales with score)
 let gstate = 'start'; // 'start' | 'playing' | 'gameover'
 let score, life, carrots, fox, particles;
 let carrotTimer, foxTimer, foxWarning, monsteraWarning;
-let cage, trophyCages;
 let btnHover = false;
 let lastTime = 0;
 
 const keys = {};
 
-const bunny = { x:0, y:0, w:32, h:38, speed:BUNNY_SPEED, facing:'down', animFrame:0, animTimer:0, moving:false, dizzy:0, hasCage:false };
+const bunny = { x:0, y:0, w:32, h:38, speed:BUNNY_SPEED, facing:'down', animFrame:0, animTimer:0, moving:false, dizzy:0 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRE-RENDER GRASS
@@ -430,72 +429,6 @@ function drawFox(c, x, y, frame) {
   c.fillRect(x+19, y+38-bob, 9, 2);
 }
 
-function drawCage(c, x, y, glow) {
-  x = x|0; y = y|0;
-  if (glow) {
-    const g = (Math.sin(Date.now() / 220) * 0.5 + 0.5) * 0.4;
-    c.fillStyle = `rgba(255,220,0,${g})`;
-    c.fillRect(x-6, y-10, 42, 46);
-  }
-  // Shadow
-  c.fillStyle = 'rgba(0,0,0,0.22)';
-  c.fillRect(x+3, y+27, 26, 4);
-  // Hook
-  c.fillStyle = '#888';
-  c.fillRect(x+11, y-6, 6, 7);
-  c.fillRect(x+9,  y-9, 10, 4);
-  c.fillStyle = '#bbb';
-  c.fillRect(x+12, y-8, 3, 5);
-  // Interior
-  c.fillStyle = '#111';
-  c.fillRect(x+2, y+4, 24, 22);
-  // Top & bottom frames
-  c.fillStyle = '#888';
-  c.fillRect(x,   y+2,  28, 4);
-  c.fillRect(x,   y+24, 28, 4);
-  // Left & right frames
-  c.fillRect(x,   y+2,  3, 26);
-  c.fillRect(x+25,y+2,  3, 26);
-  // Vertical bars
-  for (let i = 1; i <= 3; i++) {
-    c.fillStyle = '#777';
-    c.fillRect(x+2 + i*6, y+2, 3, 26);
-    c.fillStyle = '#aaa';
-    c.fillRect(x+2 + i*6, y+2, 1, 26);
-  }
-  // Top highlights
-  c.fillStyle = '#bbb';
-  c.fillRect(x, y+2, 28, 2);
-  c.fillRect(x, y+2, 2, 26);
-}
-
-function drawTrophyCage(c, x, y) {
-  drawCage(c, x, y, false);
-  // Tiny trapped fox inside
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+7,  y+10, 14, 8);
-  c.fillRect(x+9,  y+7,  10, 6);
-  c.fillStyle = '#ff2200';
-  c.fillRect(x+10, y+8,  2,  2);
-  c.fillRect(x+16, y+8,  2,  2);
-  c.fillStyle = '#ee6622';
-  c.fillRect(x+8,  y+17, 4,  3);  // tail curl
-}
-
-function drawMiniCage(c, x, y) {
-  x = x|0; y = y|0;
-  c.fillStyle = '#777';
-  c.fillRect(x,   y,  14, 2);
-  c.fillRect(x,   y+9,14, 2);
-  c.fillRect(x,   y,  2,  11);
-  c.fillRect(x+12,y,  2,  11);
-  c.fillStyle = '#555';
-  c.fillRect(x+4, y,  2,  11);
-  c.fillRect(x+8, y,  2,  11);
-  c.fillStyle = '#888';
-  c.fillRect(x+5, y-3,4,  3);
-}
-
 function drawMonstera(c, x, y, lifetime) {
   x = x|0; y = y|0;
   if (lifetime < 2 && Math.floor(lifetime * 6) % 2 === 0) return;
@@ -710,7 +643,7 @@ function spawnFox() {
   else if (side === 2) { x = Math.random() * (W-36); y = H + 5; }
   else                 { x = -44;                    y = Math.random() * (H-42); }
   const speed = FOX_SPEED_BASE + score * 1.3;
-  fox = { x, y, w: 36, h: 44, speed, animFrame: 0, animTimer: 0, lifetime: 20, cageSpawned: false };
+  fox = { x, y, w: 36, h: 44, speed, animFrame: 0, animTimer: 0, lifetime: 20 };
   foxWarning = 2.8;
 }
 
@@ -814,72 +747,38 @@ function update(dt) {
 
   if (fox) {
     fox.lifetime -= dt;
-    const retreating = fox.lifetime <= 10;
+    const retreating = fox.lifetime <= 10; // retreat during last 10s
 
-    // ── Cage: spawn 5s after fox (lifetime=15), despawn 5s before fox gone (lifetime=5) ──
-    if (!fox.cageSpawned && fox.lifetime <= 15) {
-      fox.cageSpawned = true;
-      const m = 60;
-      cage = { x: m + Math.random()*(W-m*2-28), y: m + Math.random()*(H-m*2-28), w: 28, h: 28 };
+    let fdx, fdy;
+    if (retreating) {
+      fdx = fox.x - bunny.x; // away from bunny
+      fdy = fox.y - bunny.y;
+    } else {
+      fdx = bunny.x - fox.x; // toward bunny
+      fdy = bunny.y - fox.y;
     }
-    if (cage && fox.lifetime <= 5) cage = null;
+    const dist = Math.sqrt(fdx*fdx + fdy*fdy) || 1;
+    const spd  = retreating ? fox.speed * 1.4 : fox.speed;
+    fox.x += (fdx / dist) * spd * dt;
+    fox.y += (fdy / dist) * spd * dt;
 
-    // ── Catch fox with cage → 100p + trophy (works in any phase) ──
-    if (bunny.hasCage && overlaps(
-      bunny.x+4, bunny.y+4, bunny.w-8, bunny.h-8,
-      fox.x+4,   fox.y+4,   fox.w-8,  fox.h-8
+    fox.animTimer += dt;
+    if (fox.animTimer > 0.17) { fox.animTimer = 0; fox.animFrame ^= 1; }
+
+    // Only deadly when chasing
+    if (!retreating && overlaps(
+      bunny.x+6, bunny.y+6, bunny.w-12, bunny.h-12,
+      fox.x+6, fox.y+6, fox.w-12, fox.h-12
     )) {
-      score += 100;
-      addParticle(fox.x+18, fox.y,    '+100!',    '#ffd700');
-      addParticle(fox.x+18, fox.y+18, 'F\u00c5NGAD!', '#ff8800');
-      trophyCages.push({ x: fox.x|0, y: fox.y|0 });
-      bunny.hasCage = false;
-      fox  = null;
-      cage = null;
-      foxTimer = 25 + Math.random() * 10;
+      gstate = 'gameover'; return;
     }
 
-    if (fox) {
-      let fdx, fdy;
-      if (retreating) {
-        fdx = fox.x - bunny.x;
-        fdy = fox.y - bunny.y;
-      } else {
-        fdx = bunny.x - fox.x;
-        fdy = bunny.y - fox.y;
-      }
-      const dist = Math.sqrt(fdx*fdx + fdy*fdy) || 1;
-      const spd  = retreating ? fox.speed * 1.4 : fox.speed;
-      fox.x += (fdx / dist) * spd * dt;
-      fox.y += (fdy / dist) * spd * dt;
-
-      fox.animTimer += dt;
-      if (fox.animTimer > 0.17) { fox.animTimer = 0; fox.animFrame ^= 1; }
-
-      if (!retreating && overlaps(
-        bunny.x+6, bunny.y+6, bunny.w-12, bunny.h-12,
-        fox.x+6,   fox.y+6,   fox.w-12,  fox.h-12
-      )) {
-        gstate = 'gameover'; return;
-      }
-
-      const offScreen = fox.x < -80 || fox.x > W+80 || fox.y < -80 || fox.y > H+80;
-      if (fox.lifetime <= 0 || (retreating && offScreen)) {
-        cage = null;           // ground cage gone with the fox
-        bunny.hasCage = false; // carried cage also disappears
-        fox  = null;
-        foxTimer = 28 + Math.random() * 15;
-      }
+    // Despawn when lifetime up or retreated off-screen
+    const offScreen = fox.x < -80 || fox.x > W+80 || fox.y < -80 || fox.y > H+80;
+    if (fox.lifetime <= 0 || (retreating && offScreen)) {
+      fox = null;
+      foxTimer = 28 + Math.random() * 15; // longer cooldown after retreat
     }
-  }
-
-  // ── Cage pickup ──
-  if (cage && overlaps(
-    bunny.x+6, bunny.y+6, bunny.w-12, bunny.h-12,
-    cage.x, cage.y, cage.w, cage.h
-  )) {
-    bunny.hasCage = true;
-    cage = null;
   }
 
   if (foxWarning > 0) foxWarning -= dt;
@@ -894,26 +793,17 @@ function update(dt) {
 function render() {
   ctx.drawImage(grassCvs, 0, 0);
 
-  // Trophy cages (permanent, with fox inside)
-  for (const tc of trophyCages) drawTrophyCage(ctx, tc.x, tc.y);
-
   // Carrots / monstera
   for (const c of carrots) {
     if (c.type === 'monstera') drawMonstera(ctx, c.x, c.y, c.life);
     else drawCarrot(ctx, c.x, c.y, c.type === 'golden', c.life);
   }
 
-  // Ground cage (glows when Frasse doesn't have it yet)
-  if (cage) drawCage(ctx, cage.x, cage.y, !bunny.hasCage);
-
   // Fox
   if (fox) drawFox(ctx, fox.x, fox.y, fox.animFrame);
 
   // Bunny
   drawBunny(ctx, bunny.x, bunny.y, bunny.facing, bunny.animFrame, bunny.moving);
-
-  // Cage carried beside Frasse (clearly visible with glow)
-  if (bunny.hasCage) drawCage(ctx, bunny.x + bunny.w + 2, bunny.y + 4, true);
 
   // Dizzy stars around head
   if (bunny.dizzy > 0) drawDizzyStars(ctx, bunny.x, bunny.y);
@@ -965,11 +855,8 @@ function startGame() {
   bunny.y      = H/2 - 16;
   bunny.facing = 'down';
   bunny.animFrame = 0;
-  bunny.dizzy   = 0;
-  bunny.speed   = BUNNY_SPEED;
-  bunny.hasCage = false;
-  cage          = null;
-  trophyCages   = [];
+  bunny.dizzy  = 0;
+  bunny.speed  = BUNNY_SPEED;
   monsteraWarning = 0;
   updateHUD();
 }
