@@ -1,1074 +1,1235 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sv">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Frasse the Bunny</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #1a1a2e;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      font-family: 'Courier New', monospace;
-      user-select: none;
-      overflow-x: hidden;
-    }
-    #game-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 640px;
-    }
-    #hud {
-      width: 100%;
-      height: 42px;
-      background: #1e1e1e;
-      border: 3px solid #555;
-      border-bottom: none;
-      display: flex;
-      align-items: center;
-      padding: 0 14px;
-      gap: 10px;
-    }
-    .hud-label {
-      color: #ff6699;
-      font-size: 14px;
-      font-weight: bold;
-      white-space: nowrap;
-    }
-    #life-bar-wrap {
-      flex: 1;
-      height: 22px;
-      background: #111;
-      border: 2px solid #444;
-      position: relative;
-      overflow: hidden;
-    }
-    #life-bar {
-      height: 100%;
-      width: 100%;
-      background: #44cc44;
-      transition: width 0.12s linear, background 0.3s;
-      position: relative;
-    }
-    #life-bar::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: repeating-linear-gradient(
-        45deg, transparent, transparent 4px,
-        rgba(255,255,255,0.07) 4px, rgba(255,255,255,0.07) 8px
-      );
-    }
-    #score {
-      color: #ffff66;
-      font-size: 15px;
-      font-weight: bold;
-      min-width: 90px;
-      text-align: right;
-    }
-    canvas {
-      display: block;
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border: 3px solid #555;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-      outline: none;
-      touch-action: none;
-    }
-    #dpad {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 14px 0 20px;
-      width: 100%;
-      max-width: 640px;
-      background: #1a1a2e;
-    }
-    .dpad-row {
-      display: flex;
-      gap: 4px;
-    }
-    .dpad-btn {
-      width: 68px;
-      height: 68px;
-      background: #252540;
-      border: 3px solid #555;
-      border-radius: 8px;
-      color: #ccc;
-      font-size: 26px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: none;
-      user-select: none;
-    }
-    .dpad-btn:active, .dpad-btn.pressed {
-      background: #2a6644;
-      border-color: #55aa77;
-      color: #fff;
-    }
-    .dpad-spacer {
-      width: 68px;
-      height: 68px;
-    }
-  </style>
-</head>
-<body>
-<div id="game-container">
-  <div id="hud">
-    <span class="hud-label">&#9829; LIV</span>
-    <div id="life-bar-wrap"><div id="life-bar"></div></div>
-    <div id="score">0 poäng</div>
-  </div>
-  <canvas id="canvas" width="640" height="640" tabindex="0"></canvas>
-</div>
-<div id="dpad">
-  <div class="dpad-row">
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-up">▲</button>
-    <div class="dpad-spacer"></div>
-  </div>
-  <div class="dpad-row">
-    <button class="dpad-btn" id="btn-left">◀</button>
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-right">▶</button>
-  </div>
-  <div class="dpad-row">
-    <div class="dpad-spacer"></div>
-    <button class="dpad-btn" id="btn-down">▼</button>
-    <div class="dpad-spacer"></div>
-  </div>
-</div>
-
-<script>
-// ─────────────────────────────────────────────────────────────────────────────
-// FRASSE THE BUNNY
-// ─────────────────────────────────────────────────────────────────────────────
-
-const canvas  = document.getElementById('canvas');
-const ctx     = canvas.getContext('2d');
-const lifeEl  = document.getElementById('life-bar');
-const scoreEl = document.getElementById('score');
-ctx.imageSmoothingEnabled = false;
-
-const W = 640, H = 640;
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const BUNNY_SPEED       = 155;   // px/s
-const LIFE_DRAIN        = 4;     // % per second
-const CARROT_LIFETIME   = 7;     // seconds
-const CARROT_INTERVAL   = 2.4;   // seconds between spawns
-const MAX_CARROTS       = 6;
-const FOX_SPEED_BASE    = 65;    // px/s (scales with score)
-
-// ── Game state ────────────────────────────────────────────────────────────────
-let gstate = 'start'; // 'start' | 'playing' | 'gameover'
-let score, life, carrots, fox, particles;
-let carrotTimer, foxTimer, foxWarning, monsteraWarning;
-let cage, trophyCages;
-let btnHover = false;
-let lastTime = 0;
-
-const keys = {};
-
-const bunny = { x:0, y:0, w:32, h:38, speed:BUNNY_SPEED, facing:'down', animFrame:0, animTimer:0, moving:false, dizzy:0, hasCage:false };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PRE-RENDER GRASS
-// ─────────────────────────────────────────────────────────────────────────────
-const grassCvs = document.createElement('canvas');
-grassCvs.width = W; grassCvs.height = H;
-const gc = grassCvs.getContext('2d');
-
-(function buildGrass() {
-  gc.fillStyle = '#4a8c3f';
-  gc.fillRect(0, 0, W, H);
-
-  gc.fillStyle = '#3d7534';
-  for (let i = 0; i < 260; i++) {
-    gc.fillRect((i*127+33)%W, (i*89+57)%H, 8+(i*13)%24, 4+(i*7)%10);
-  }
-  gc.fillStyle = '#5cb84e';
-  for (let i = 0; i < 130; i++) {
-    gc.fillRect((i*211+100)%W, (i*173+200)%H, 3, 6);
-  }
-  const fc = ['#fffacd','#ffddee','#ffffff'];
-  for (let i = 0; i < 35; i++) {
-    gc.fillStyle = fc[i%3];
-    gc.fillRect((i*317+50)%W, (i*263+70)%H, 4, 4);
-  }
-})();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPRITE DRAWING
-// ─────────────────────────────────────────────────────────────────────────────
-
-function drawBunny(c, x, y, facing, frame, moving) {
-  x = x|0; y = y|0;
-  const bob = (moving && frame === 1) ? 1 : 0;
-
-  // Shadow
-  c.fillStyle = 'rgba(0,0,0,0.18)';
-  c.fillRect(x+5, y+38, 24, 5);
-
-  // Ears
-  c.fillStyle = '#dcdcdc';
-  c.fillRect(x+7,  y-14, 8, 18);
-  c.fillRect(x+19, y-14, 8, 18);
-  c.fillStyle = '#ffb3c6';
-  c.fillRect(x+9,  y-12, 4, 14);
-  c.fillRect(x+21, y-12, 4, 14);
-  // Ear tips slightly darker
-  c.fillStyle = '#c8c8c8';
-  c.fillRect(x+7,  y-14, 8, 3);
-  c.fillRect(x+19, y-14, 8, 3);
-
-  // Body
-  c.fillStyle = '#f0f0f0';
-  c.fillRect(x+4, y+14, 26, 20);
-  c.fillStyle = '#fafafa';
-  c.fillRect(x+6, y+16, 12, 16);
-
-  // Head
-  c.fillStyle = '#f5f5f5';
-  c.fillRect(x+5, y+0, 24, 18);
-  c.fillStyle = '#ffffff';
-  c.fillRect(x+7, y+2, 9, 9);
-
-  // Belly
-  c.fillStyle = '#ffffff';
-  c.fillRect(x+10, y+17, 14, 14);
-
-  // Eyes
-  c.fillStyle = '#222';
-  if (facing === 'left') {
-    c.fillRect(x+6, y+5, 4, 4);
-    c.fillStyle = '#fff'; c.fillRect(x+7, y+5, 1, 2);
-  } else if (facing === 'right') {
-    c.fillRect(x+24, y+5, 4, 4);
-    c.fillStyle = '#fff'; c.fillRect(x+25, y+5, 1, 2);
-  } else {
-    c.fillRect(x+9,  y+5, 4, 4);
-    c.fillRect(x+21, y+5, 4, 4);
-    c.fillStyle = '#fff';
-    c.fillRect(x+10, y+5, 1, 2);
-    c.fillRect(x+22, y+5, 1, 2);
-  }
-
-  // Nose
-  c.fillStyle = '#ffb3c6';
-  c.fillRect(x+13, y+12, 6, 3);
-  c.fillStyle = '#ff8fad';
-  c.fillRect(x+14, y+13, 4, 2);
-
-  // Whiskers
-  c.fillStyle = 'rgba(100,100,100,0.6)';
-  if (facing !== 'right') { c.fillRect(x+1, y+12, 9, 1); c.fillRect(x+2, y+14, 8, 1); }
-  if (facing !== 'left')  { c.fillRect(x+24, y+12, 9, 1); c.fillRect(x+24, y+14, 8, 1); }
-
-  // Tail
-  c.fillStyle = '#ffffff';
-  c.fillRect(x+27, y+20, 7, 8);
-  c.fillStyle = '#e0e0e0';
-  c.fillRect(x+28, y+21, 5, 6);
-
-  // Front legs
-  c.fillStyle = '#e4e4e4';
-  c.fillRect(x+5,  y+30+bob, 9, 8);
-  c.fillRect(x+20, y+30-bob, 9, 8);
-  // Paws
-  c.fillStyle = '#ffb3c6';
-  c.fillRect(x+5,  y+37+bob, 9, 2);
-  c.fillRect(x+20, y+37-bob, 9, 2);
-}
-
-function drawCarrot(c, x, y, golden, lifetime) {
-  x = x|0; y = y|0;
-  if (lifetime < 2 && Math.floor(lifetime * 6) % 2 === 0) return;
-
-  c.fillStyle = 'rgba(0,0,0,0.18)';
-  c.fillRect(x+3, y+22, 16, 4);
-
-  if (golden) {
-    // Glow
-    c.fillStyle = 'rgba(255,210,0,0.22)';
-    c.fillRect(x-7, y-7, 36, 40);
-
-    c.fillStyle = '#ffd700';
-    c.fillRect(x+4, y+6, 14, 16);
-    c.fillStyle = '#ffec6e';
-    c.fillRect(x+4, y+6, 5, 16);
-    c.fillStyle = '#c8960c';
-    c.fillRect(x+15, y+6, 3, 16);
-    c.fillStyle = '#daa520';
-    c.fillRect(x+4, y+10, 14, 2);
-    c.fillRect(x+4, y+15, 14, 2);
-    // Tip
-    c.fillStyle = '#b8860b';
-    c.fillRect(x+6,  y+21, 10, 4);
-    c.fillRect(x+8,  y+24, 6,  3);
-    c.fillRect(x+10, y+26, 2,  2);
-    // Leaves
-    c.fillStyle = '#228b22';
-    c.fillRect(x+3,  y-2, 4, 10);
-    c.fillRect(x+8,  y-5, 5, 12);
-    c.fillRect(x+14, y-2, 4, 10);
-    c.fillStyle = '#32cd32';
-    c.fillRect(x+4,  y,   2, 6);
-    c.fillRect(x+9,  y-3, 3, 8);
-    c.fillRect(x+15, y,   2, 6);
-    // Sparkle
-    const t = Math.floor(Date.now() / 170) % 4;
-    const sp = [[x-2,y+2],[x+20,y+4],[x+0,y+20],[x+18,y+18]];
-    c.fillStyle = '#fff';
-    c.fillRect(sp[t][0],   sp[t][1],   3, 3);
-    c.fillRect(sp[t][0]+1, sp[t][1]-2, 1, 7);
-    c.fillRect(sp[t][0]-2, sp[t][1]+1, 7, 1);
-  } else {
-    c.fillStyle = '#ff8000';
-    c.fillRect(x+4,  y+6,  14, 16);
-    c.fillStyle = '#ffaa44';
-    c.fillRect(x+4,  y+6,  5,  16);
-    c.fillStyle = '#c05800';
-    c.fillRect(x+15, y+6,  3,  16);
-    c.fillStyle = '#d06000';
-    c.fillRect(x+4,  y+10, 14, 2);
-    c.fillRect(x+4,  y+15, 14, 2);
-    // Tip
-    c.fillStyle = '#e07000';
-    c.fillRect(x+6,  y+21, 10, 4);
-    c.fillRect(x+8,  y+24, 6,  3);
-    c.fillRect(x+10, y+26, 2,  2);
-    // Leaves
-    c.fillStyle = '#2d8c2d';
-    c.fillRect(x+3,  y-2, 4, 10);
-    c.fillRect(x+8,  y-5, 5, 12);
-    c.fillRect(x+14, y-2, 4, 10);
-    c.fillStyle = '#3daa3d';
-    c.fillRect(x+4,  y,   2, 6);
-    c.fillRect(x+9,  y-3, 3, 8);
-    c.fillRect(x+15, y,   2, 6);
-  }
-}
-
-function drawFox(c, x, y, frame) {
-  x = x|0; y = y|0;
-  const bob = frame === 1 ? 1 : 0;
-
-  // Shadow
-  c.fillStyle = 'rgba(0,0,0,0.22)';
-  c.fillRect(x+4, y+38, 32, 5);
-
-  // Tail
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+28, y+16, 14, 12);
-  c.fillRect(x+30, y+13, 10,  5);
-  c.fillStyle = '#ee6622';
-  c.fillRect(x+29, y+17,  7,  8);
-  c.fillStyle = '#ffffff';
-  c.fillRect(x+33, y+20,  7,  6);
-
-  // Body
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+4, y+14, 26, 22);
-  c.fillStyle = '#ee6622';
-  c.fillRect(x+6, y+16, 14, 18);
-
-  // Head
-  c.fillStyle = '#dd5511';
-  c.fillRect(x+5, y+2,  22, 18);
-  c.fillStyle = '#ee6622';
-  c.fillRect(x+7, y+4,  12, 10);
-
-  // Ears (pointy)
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+5,  y-8, 8, 14);
-  c.fillRect(x+19, y-8, 8, 14);
-  c.fillStyle = '#ff9988';
-  c.fillRect(x+7,  y-6, 4, 10);
-  c.fillRect(x+21, y-6, 4, 10);
-
-  // White muzzle
-  c.fillStyle = '#fff';
-  c.fillRect(x+7,  y+9,  6, 8);
-  c.fillRect(x+19, y+9,  6, 8);
-  c.fillRect(x+10, y+9,  12, 8);
-
-  // Eyes (red and menacing)
-  c.fillStyle = '#111';
-  c.fillRect(x+8,  y+4, 5, 5);
-  c.fillRect(x+19, y+4, 5, 5);
-  c.fillStyle = '#ff2200';
-  c.fillRect(x+9,  y+4, 4, 4);
-  c.fillRect(x+20, y+4, 4, 4);
-  c.fillStyle = '#ff9900';
-  c.fillRect(x+9,  y+5, 2, 2);
-  c.fillRect(x+20, y+5, 2, 2);
-
-  // Nose
-  c.fillStyle = '#111';
-  c.fillRect(x+14, y+12, 4, 4);
-  c.fillStyle = '#333';
-  c.fillRect(x+15, y+12, 2, 2);
-
-  // Legs
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+5,  y+32+bob, 9, 8);
-  c.fillRect(x+19, y+32-bob, 9, 8);
-  c.fillStyle = '#fff';
-  c.fillRect(x+5,  y+38+bob, 9, 2);
-  c.fillRect(x+19, y+38-bob, 9, 2);
-}
-
-function drawCage(c, x, y, glow) {
-  x = x|0; y = y|0;
-  if (glow) {
-    const g = (Math.sin(Date.now() / 220) * 0.5 + 0.5) * 0.4;
-    c.fillStyle = `rgba(255,220,0,${g})`;
-    c.fillRect(x-6, y-10, 42, 46);
-  }
-  // Shadow
-  c.fillStyle = 'rgba(0,0,0,0.22)';
-  c.fillRect(x+3, y+27, 26, 4);
-  // Hook
-  c.fillStyle = '#888';
-  c.fillRect(x+11, y-6, 6, 7);
-  c.fillRect(x+9,  y-9, 10, 4);
-  c.fillStyle = '#bbb';
-  c.fillRect(x+12, y-8, 3, 5);
-  // Interior
-  c.fillStyle = '#111';
-  c.fillRect(x+2, y+4, 24, 22);
-  // Top & bottom frames
-  c.fillStyle = '#888';
-  c.fillRect(x,   y+2,  28, 4);
-  c.fillRect(x,   y+24, 28, 4);
-  // Left & right frames
-  c.fillRect(x,   y+2,  3, 26);
-  c.fillRect(x+25,y+2,  3, 26);
-  // Vertical bars
-  for (let i = 1; i <= 3; i++) {
-    c.fillStyle = '#777';
-    c.fillRect(x+2 + i*6, y+2, 3, 26);
-    c.fillStyle = '#aaa';
-    c.fillRect(x+2 + i*6, y+2, 1, 26);
-  }
-  // Top highlights
-  c.fillStyle = '#bbb';
-  c.fillRect(x, y+2, 28, 2);
-  c.fillRect(x, y+2, 2, 26);
-}
-
-function drawTrophyCage(c, x, y) {
-  drawCage(c, x, y, false);
-  // Tiny trapped fox inside
-  c.fillStyle = '#cc4400';
-  c.fillRect(x+7,  y+10, 14, 8);
-  c.fillRect(x+9,  y+7,  10, 6);
-  c.fillStyle = '#ff2200';
-  c.fillRect(x+10, y+8,  2,  2);
-  c.fillRect(x+16, y+8,  2,  2);
-  c.fillStyle = '#ee6622';
-  c.fillRect(x+8,  y+17, 4,  3);  // tail curl
-}
-
-function drawMiniCage(c, x, y) {
-  x = x|0; y = y|0;
-  c.fillStyle = '#777';
-  c.fillRect(x,   y,  14, 2);
-  c.fillRect(x,   y+9,14, 2);
-  c.fillRect(x,   y,  2,  11);
-  c.fillRect(x+12,y,  2,  11);
-  c.fillStyle = '#555';
-  c.fillRect(x+4, y,  2,  11);
-  c.fillRect(x+8, y,  2,  11);
-  c.fillStyle = '#888';
-  c.fillRect(x+5, y-3,4,  3);
-}
-
-function drawMonstera(c, x, y, lifetime) {
-  x = x|0; y = y|0;
-  if (lifetime < 2 && Math.floor(lifetime * 6) % 2 === 0) return;
-
-  // Shadow
-  c.fillStyle = 'rgba(0,0,0,0.2)';
-  c.fillRect(x+4, y+30, 20, 4);
-
-  // Pot rim + body
-  c.fillStyle = '#704212';
-  c.fillRect(x+7, y+21, 14, 3);
-  c.fillStyle = '#8b5a2b';
-  c.fillRect(x+8, y+23, 12, 8);
-  c.fillStyle = '#b07a3a';
-  c.fillRect(x+8, y+24, 5, 6);
-
-  // Stem
-  c.fillStyle = '#2a6012';
-  c.fillRect(x+13, y+12, 2, 10);
-
-  // Left leaf
-  c.fillStyle = '#1a7a10';
-  c.fillRect(x+2,  y+2,  9,  4);
-  c.fillRect(x+0,  y+5,  13, 11);
-  c.fillRect(x+1,  y+4,  13, 4);
-  // Notches (edge splits)
-  c.fillStyle = '#0d5008';
-  c.fillRect(x+0,  y+9,  2,  4);
-  c.fillRect(x+4,  y+2,  2,  2);
-  // Fenestration (lighter holes = characteristic monstera look)
-  c.fillStyle = '#2da018';
-  c.fillRect(x+3,  y+6,  3,  3);
-  c.fillRect(x+9,  y+10, 3,  3);
-  // Vein + shine
-  c.fillStyle = '#0a4006';
-  c.fillRect(x+7,  y+3,  2,  13);
-  c.fillStyle = '#30b020';
-  c.fillRect(x+3,  y+4,  3,  2);
-
-  // Right leaf (different shade)
-  c.fillStyle = '#157010';
-  c.fillRect(x+14, y+2,  12, 4);
-  c.fillRect(x+12, y+5,  14, 10);
-  c.fillRect(x+14, y+14, 8,  3);
-  // Notches
-  c.fillStyle = '#0a4808';
-  c.fillRect(x+24, y+6,  2,  4);
-  c.fillRect(x+18, y+2,  2,  2);
-  // Fenestration
-  c.fillStyle = '#28a815';
-  c.fillRect(x+15, y+7,  3,  3);
-  c.fillRect(x+21, y+10, 3,  3);
-  // Vein + shine
-  c.fillStyle = '#083806';
-  c.fillRect(x+19, y+3,  2,  12);
-  c.fillStyle = '#2ab818';
-  c.fillRect(x+16, y+3,  3,  2);
-}
-
-function drawDizzyStars(c, x, y) {
-  const t = Date.now() / 280;
-  const colors = ['#ffff00', '#ff66ff', '#66ffff'];
-  for (let i = 0; i < 3; i++) {
-    const angle = t + (i * Math.PI * 2 / 3);
-    const sx = (x + 16 + Math.cos(angle) * 19) | 0;
-    const sy = (y - 5  + Math.sin(angle) * 9)  | 0;
-    c.fillStyle = colors[i];
-    c.fillRect(sx-1, sy-3, 2, 6); // vertical bar
-    c.fillRect(sx-3, sy-1, 6, 2); // horizontal bar
-    c.fillRect(sx-2, sy-2, 2, 2); // diagonal corners
-    c.fillRect(sx+1, sy-2, 2, 2);
-    c.fillRect(sx-2, sy+1, 2, 2);
-    c.fillRect(sx+1, sy+1, 2, 2);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PARTICLES
-// ─────────────────────────────────────────────────────────────────────────────
-function addParticle(x, y, text, color) {
-  particles.push({ x, y, text, color, life: 1.4, vy: -50 });
-}
-
-function updateParticles(dt) {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.life -= dt;
-    p.y += p.vy * dt;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-}
-
-function drawParticles(c) {
-  c.textAlign = 'center';
-  for (const p of particles) {
-    c.globalAlpha = Math.min(1, p.life);
-    c.fillStyle = p.color;
-    c.font = 'bold 15px "Courier New"';
-    c.fillText(p.text, p.x, p.y);
-  }
-  c.globalAlpha = 1;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HUD
-// ─────────────────────────────────────────────────────────────────────────────
-function updateHUD() {
-  lifeEl.style.width = life + '%';
-  if (life > 60)      lifeEl.style.background = '#44cc44';
-  else if (life > 30) lifeEl.style.background = '#ffaa00';
-  else                lifeEl.style.background = '#ff3333';
-  scoreEl.textContent = score + ' poäng';
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BUTTON HELPER
-// ─────────────────────────────────────────────────────────────────────────────
-function drawBtn(label, cy, hover) {
-  const w = 270, h = 50, x = W/2 - w/2, y = cy - h/2;
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(x+4, y+4, w, h);
-  // Body
-  ctx.fillStyle = hover ? '#55dd77' : '#33bb55';
-  ctx.fillRect(x, y, w, h);
-  // Top shine
-  ctx.fillStyle = hover ? '#99ffbb' : '#66cc88';
-  ctx.fillRect(x, y, w, 5);
-  // Bottom edge
-  ctx.fillStyle = '#1a6633';
-  ctx.fillRect(x, y+h-5, w, 5);
-  // Label
-  ctx.fillStyle = '#002211';
-  ctx.font = 'bold 20px "Courier New"';
-  ctx.textAlign = 'center';
-  ctx.fillText(label, W/2, cy + 8);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCREENS
-// ─────────────────────────────────────────────────────────────────────────────
-function drawStartScreen() {
-  ctx.drawImage(grassCvs, 0, 0);
-  ctx.fillStyle = 'rgba(0,0,18,0.72)';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#88ffaa';
-  ctx.font = 'bold 56px "Courier New"';
-  ctx.fillText('FRASSE', W/2, 185);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px "Courier New"';
-  ctx.fillText('THE BUNNY', W/2, 228);
-
-  drawBunny(ctx, W/2 - 16, 255, 'down', 0, false);
-
-  drawBtn('\u25b6  STARTA SPELET', 370, btnHover);
-
-  ctx.fillStyle = '#bbbbbb';
-  ctx.font = '13px "Courier New"';
-  ctx.fillText('Piltangenter / WASD f\u00f6r att r\u00f6ra Frasse', W/2, 430);
-  ctx.fillText('F\u00e5nga mor\u00f6tter innan de f\u00f6rsvinner', W/2, 450);
-  ctx.fillText('Gyllene morot = 10 po\u00e4ng + fullt liv', W/2, 470);
-  ctx.fillText('Undvik r\u00e4ven \u2014 annars \u00e4r det game over!', W/2, 490);
-}
-
-function drawGameOverScreen() {
-  ctx.drawImage(grassCvs, 0, 0);
-  ctx.fillStyle = 'rgba(50,0,0,0.80)';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff4444';
-  ctx.font = 'bold 54px "Courier New"';
-  ctx.fillText('GAME OVER', W/2, 255);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '26px "Courier New"';
-  ctx.fillText('Slutpoäng: ' + score, W/2, 320);
-
-  const msg = score < 5  ? 'Övning ger färdighet...' :
-              score < 15 ? 'Inte illa, Frasse!' :
-              score < 30 ? 'Bra jobbat!' :
-              score < 50 ? 'Du är kaninmästare!' : 'LEGENDARISK!';
-  ctx.fillStyle = '#ffff88';
-  ctx.font = '20px "Courier New"';
-  ctx.fillText(msg, W/2, 366);
-
-  drawBtn('\u25b6  SPELA IGEN', 435, btnHover);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SPAWN
-// ─────────────────────────────────────────────────────────────────────────────
-function spawnCarrot() {
-  if (carrots.length >= MAX_CARROTS) return;
-  const r = Math.random();
-  const type = r < 0.10 ? 'golden' : r < 0.35 ? 'monstera' : 'normal';
-  const m = 52;
-  carrots.push({
-    x: m + Math.random() * (W - m*2 - 28),
-    y: m + Math.random() * (H - m*2 - 32),
-    type, life: CARROT_LIFETIME, w: 28, h: 32
-  });
-}
-
-function spawnFox() {
-  const side = Math.floor(Math.random() * 4);
-  let x, y;
-  if      (side === 0) { x = Math.random() * (W-36); y = -44; }
-  else if (side === 1) { x = W + 5;                  y = Math.random() * (H-42); }
-  else if (side === 2) { x = Math.random() * (W-36); y = H + 5; }
-  else                 { x = -44;                    y = Math.random() * (H-42); }
-  const speed = FOX_SPEED_BASE + score * 1.3;
-  fox = { x, y, w: 36, h: 44, speed, animFrame: 0, animTimer: 0, lifetime: 20, cageSpawned: false };
-  foxWarning = 2.8;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COLLISION
-// ─────────────────────────────────────────────────────────────────────────────
-function overlaps(ax, ay, aw, ah, bx, by, bw, bh) {
-  return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UPDATE
-// ─────────────────────────────────────────────────────────────────────────────
-function update(dt) {
-  // ── Move bunny ──
-  let dx = 0, dy = 0;
-  if (keys['ArrowLeft']  || keys['a'] || keys['A']) dx -= 1;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
-  if (keys['ArrowUp']    || keys['w'] || keys['W']) dy -= 1;
-  if (keys['ArrowDown']  || keys['s'] || keys['S']) dy += 1;
-  if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
-
-  bunny.moving = !!(dx || dy);
-  if      (dx < 0) bunny.facing = 'left';
-  else if (dx > 0) bunny.facing = 'right';
-  else if (dy < 0) bunny.facing = 'up';
-  else if (dy > 0) bunny.facing = 'down';
-
-  bunny.x = Math.max(0, Math.min(W - bunny.w, bunny.x + dx * bunny.speed * dt));
-  bunny.y = Math.max(6, Math.min(H - bunny.h, bunny.y + dy * bunny.speed * dt));
-
-  if (bunny.moving) {
-    bunny.animTimer += dt;
-    if (bunny.animTimer > 0.14) { bunny.animTimer = 0; bunny.animFrame ^= 1; }
-  } else {
-    bunny.animFrame = 0;
-  }
-
-  // ── Life drain ──
-  life = Math.max(0, life - LIFE_DRAIN * dt);
-  if (life <= 0) { gstate = 'gameover'; return; }
-
-  // ── Spawn carrots ──
-  carrotTimer -= dt;
-  if (carrotTimer <= 0) {
-    spawnCarrot();
-    carrotTimer = CARROT_INTERVAL + Math.random() * 1.5;
-  }
-
-  // ── Emergency golden carrot when life ≤ 10% ──
-  if (life <= 10 && !carrots.some(c => c.type === 'golden')) {
-    const m = 52;
-    carrots.push({
-      x: m + Math.random() * (W - m*2 - 28),
-      y: m + Math.random() * (H - m*2 - 32),
-      type: 'golden', life: CARROT_LIFETIME, w: 28, h: 32
-    });
-  }
-
-  // ── Dizzy timer ──
-  if (bunny.dizzy > 0) {
-    bunny.dizzy -= dt;
-    if (bunny.dizzy <= 0) { bunny.dizzy = 0; bunny.speed = BUNNY_SPEED; }
-  }
-  if (monsteraWarning > 0) monsteraWarning -= dt;
-
-  // ── Update / collect carrots ──
-  const pad = 10;
-  for (let i = carrots.length - 1; i >= 0; i--) {
-    const c = carrots[i];
-    c.life -= dt;
-    if (c.life <= 0) { carrots.splice(i, 1); continue; }
-
-    if (overlaps(
-      bunny.x + pad, bunny.y + pad, bunny.w - pad*2, bunny.h - pad*2,
-      c.x, c.y, c.w, c.h
-    )) {
-      if (c.type === 'golden') {
-        score += 10;
-        life = 100;
-        addParticle(c.x + 11, c.y, '+10 ★', '#ffd700');
-      } else if (c.type === 'monstera') {
-        bunny.dizzy = 5;
-        bunny.speed = BUNNY_SPEED / 2;
-        monsteraWarning = 4;
-      } else {
-        score += 1;
-        life = Math.min(100, life + 10);
-        addParticle(c.x + 11, c.y, '+1', '#ffffff');
-      }
-      carrots.splice(i, 1);
-    }
-  }
-
-  // ── Fox ──
-  foxTimer -= dt;
-  if (foxTimer <= 0 && !fox && score >= 3) {
-    spawnFox();
-    foxTimer = 13 + Math.random() * 10;
-  }
-
-  if (fox) {
-    fox.lifetime -= dt;
-    const retreating = fox.lifetime <= 10;
-
-    // ── Cage: spawn 5s after fox (lifetime=15), despawn 5s before fox gone (lifetime=5) ──
-    if (!fox.cageSpawned && fox.lifetime <= 15) {
-      fox.cageSpawned = true;
-      const m = 60;
-      cage = { x: m + Math.random()*(W-m*2-28), y: m + Math.random()*(H-m*2-28), w: 28, h: 28 };
-    }
-    if (cage && fox.lifetime <= 5) cage = null;
-
-    // ── Catch fox with cage → 100p + trophy (works in any phase) ──
-    if (bunny.hasCage && overlaps(
-      bunny.x+4, bunny.y+4, bunny.w-8, bunny.h-8,
-      fox.x+4,   fox.y+4,   fox.w-8,  fox.h-8
-    )) {
-      score += 100;
-      addParticle(fox.x+18, fox.y,    '+100!',    '#ffd700');
-      addParticle(fox.x+18, fox.y+18, 'F\u00c5NGAD!', '#ff8800');
-      trophyCages.push({ x: fox.x|0, y: fox.y|0 });
-      bunny.hasCage = false;
-      fox  = null;
-      cage = null;
-      foxTimer = 25 + Math.random() * 10;
-    }
-
-    if (fox) {
-      let fdx, fdy;
-      if (retreating) {
-        fdx = fox.x - bunny.x;
-        fdy = fox.y - bunny.y;
-      } else {
-        fdx = bunny.x - fox.x;
-        fdy = bunny.y - fox.y;
-      }
-      const dist = Math.sqrt(fdx*fdx + fdy*fdy) || 1;
-      const spd  = retreating ? fox.speed * 1.4 : fox.speed;
-      fox.x += (fdx / dist) * spd * dt;
-      fox.y += (fdy / dist) * spd * dt;
-
-      fox.animTimer += dt;
-      if (fox.animTimer > 0.17) { fox.animTimer = 0; fox.animFrame ^= 1; }
-
-      if (!retreating && overlaps(
-        bunny.x+6, bunny.y+6, bunny.w-12, bunny.h-12,
-        fox.x+6,   fox.y+6,   fox.w-12,  fox.h-12
-      )) {
-        gstate = 'gameover'; return;
-      }
-
-      const offScreen = fox.x < -80 || fox.x > W+80 || fox.y < -80 || fox.y > H+80;
-      if (fox.lifetime <= 0 || (retreating && offScreen)) {
-        cage = null;           // ground cage gone with the fox
-        bunny.hasCage = false; // carried cage also disappears
-        fox  = null;
-        foxTimer = 28 + Math.random() * 15;
-      }
-    }
-  }
-
-  // ── Cage pickup ──
-  if (cage && overlaps(
-    bunny.x+6, bunny.y+6, bunny.w-12, bunny.h-12,
-    cage.x, cage.y, cage.w, cage.h
-  )) {
-    bunny.hasCage = true;
-    cage = null;
-  }
-
-  if (foxWarning > 0) foxWarning -= dt;
-
-  updateParticles(dt);
-  updateHUD();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RENDER
-// ─────────────────────────────────────────────────────────────────────────────
-function render() {
-  ctx.drawImage(grassCvs, 0, 0);
-
-  // Trophy cages (permanent, with fox inside)
-  for (const tc of trophyCages) drawTrophyCage(ctx, tc.x, tc.y);
-
-  // Carrots / monstera
-  for (const c of carrots) {
-    if (c.type === 'monstera') drawMonstera(ctx, c.x, c.y, c.life);
-    else drawCarrot(ctx, c.x, c.y, c.type === 'golden', c.life);
-  }
-
-  // Ground cage (glows when Frasse doesn't have it yet)
-  if (cage) drawCage(ctx, cage.x, cage.y, !bunny.hasCage);
-
-  // Fox
-  if (fox) drawFox(ctx, fox.x, fox.y, fox.animFrame);
-
-  // Bunny
-  drawBunny(ctx, bunny.x, bunny.y, bunny.facing, bunny.animFrame, bunny.moving);
-
-  // Cage carried beside Frasse (clearly visible with glow)
-  if (bunny.hasCage) drawCage(ctx, bunny.x + bunny.w + 2, bunny.y + 4, true);
-
-  // Dizzy stars around head
-  if (bunny.dizzy > 0) drawDizzyStars(ctx, bunny.x, bunny.y);
-
-  // Particles
-  drawParticles(ctx);
-
-  // Low-life red pulse
-  if (life < 15) {
-    const pulse = (Math.sin(Date.now() / 180) * 0.5 + 0.5) * 0.18;
-    ctx.fillStyle = `rgba(220,0,0,${pulse})`;
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  // Warning banner (fox takes priority over monstera)
-  if (foxWarning > 0 || monsteraWarning > 0) {
-    const alpha = Math.min(1, Math.max(foxWarning, monsteraWarning));
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(W/2 - 240, 14, 480, 38);
-    ctx.textAlign = 'center';
-    if (foxWarning > 0) {
-      ctx.fillStyle = '#ff2200';
-      ctx.font = 'bold 22px "Courier New"';
-      ctx.fillText('\u26a0 R\u00c4VEN KOMMER!', W/2, 40);
-    } else {
-      ctx.fillStyle = '#44ff44';
-      ctx.font = 'bold 15px "Courier New"';
-      ctx.fillText('\u26a0 \u00c5h, nej... Frasse \u00e5t en monstera', W/2, 40);
-    }
-    ctx.globalAlpha = 1;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GAME FLOW
-// ─────────────────────────────────────────────────────────────────────────────
-function startGame() {
-  gstate      = 'playing';
-  score       = 0;
-  life        = 100;
-  carrots     = [];
-  particles   = [];
-  fox         = null;
-  carrotTimer = 1.0;
-  foxTimer    = 15;
-  foxWarning  = 0;
-  bunny.x      = W/2 - 16;
-  bunny.y      = H/2 - 16;
-  bunny.facing = 'down';
-  bunny.animFrame = 0;
-  bunny.dizzy   = 0;
-  bunny.speed   = BUNNY_SPEED;
-  bunny.hasCage = false;
-  cage          = null;
-  trophyCages   = [];
-  monsteraWarning = 0;
-  updateHUD();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INPUT
-// ─────────────────────────────────────────────────────────────────────────────
-window.addEventListener('keydown', e => {
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
-    e.preventDefault();
-  }
-  keys[e.key] = true;
-});
-window.addEventListener('keyup', e => { keys[e.key] = false; });
-
-// Button Y centers (matches drawBtn calls)
-const BTN_START_CY  = 370;
-const BTN_OVER_CY   = 435;
-const BTN_HALF_W    = 135;
-const BTN_HALF_H    = 25;
-
-function canvasCoords(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    mx: (clientX - rect.left) * (canvas.width  / rect.width),
-    my: (clientY - rect.top)  * (canvas.height / rect.height),
-  };
-}
-
-function tryStartBtn(mx, my) {
-  const cy = gstate === 'start' ? BTN_START_CY : BTN_OVER_CY;
-  if ((gstate === 'start' || gstate === 'gameover') &&
-      Math.abs(mx - W/2) < BTN_HALF_W && Math.abs(my - cy) < BTN_HALF_H) {
-    startGame();
-  }
-}
-
-canvas.addEventListener('click', e => {
-  canvas.focus();
-  const { mx, my } = canvasCoords(e.clientX, e.clientY);
-  tryStartBtn(mx, my);
-});
-
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  canvas.focus();
-  const t = e.touches[0];
-  const { mx, my } = canvasCoords(t.clientX, t.clientY);
-  tryStartBtn(mx, my);
-}, { passive: false });
-
-canvas.addEventListener('mousemove', e => {
-  const { mx, my } = canvasCoords(e.clientX, e.clientY);
-  const cy = gstate === 'start' ? BTN_START_CY : BTN_OVER_CY;
-  const over = (gstate === 'start' || gstate === 'gameover') &&
-               Math.abs(mx - W/2) < BTN_HALF_W && Math.abs(my - cy) < BTN_HALF_H;
-  if (over !== btnHover) btnHover = over;
-  canvas.style.cursor = over ? 'pointer' : 'default';
-});
-
-// D-pad touch/mouse controls
-(function setupDpad() {
-  const map = {
-    'btn-up':    'ArrowUp',
-    'btn-down':  'ArrowDown',
-    'btn-left':  'ArrowLeft',
-    'btn-right': 'ArrowRight',
-  };
-  for (const [id, key] of Object.entries(map)) {
-    const btn = document.getElementById(id);
-    const press   = e => { e.preventDefault(); keys[key] = true;  btn.classList.add('pressed'); };
-    const release = e => { e.preventDefault(); keys[key] = false; btn.classList.remove('pressed'); };
-    btn.addEventListener('touchstart',  press,   { passive: false });
-    btn.addEventListener('touchend',    release, { passive: false });
-    btn.addEventListener('touchcancel', release, { passive: false });
-    btn.addEventListener('mousedown',   press);
-    btn.addEventListener('mouseup',     release);
-    btn.addEventListener('mouseleave',  release);
-  }
-})();
-
-// Focus canvas so keyboard works
-canvas.focus();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN LOOP
-// ─────────────────────────────────────────────────────────────────────────────
-function loop(ts) {
-  const dt = Math.min((ts - lastTime) / 1000, 0.05);
-  lastTime = ts;
-
-  if      (gstate === 'playing')  { update(dt); render(); }
-  else if (gstate === 'start')    { drawStartScreen(); }
-  else if (gstate === 'gameover') { drawGameOverScreen(); }
-
-  requestAnimationFrame(loop);
-}
-
-requestAnimationFrame(ts => { lastTime = ts; requestAnimationFrame(loop); });
-</script>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, user-scalable=no" />
+        <title>Frasse the Bunny</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: #1a1a2e;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                font-family: "Courier New", monospace;
+                user-select: none;
+                overflow-x: hidden;
+            }
+            #game-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100%;
+                max-width: 640px;
+            }
+            #hud {
+                width: 100%;
+                height: 42px;
+                background: #1e1e1e;
+                border: 3px solid #555;
+                border-bottom: none;
+                display: flex;
+                align-items: center;
+                padding: 0 14px;
+                gap: 10px;
+            }
+            .hud-label {
+                color: #ff6699;
+                font-size: 14px;
+                font-weight: bold;
+                white-space: nowrap;
+            }
+            #life-bar-wrap {
+                flex: 1;
+                height: 22px;
+                background: #111;
+                border: 2px solid #444;
+                position: relative;
+                overflow: hidden;
+            }
+            #life-bar {
+                height: 100%;
+                width: 100%;
+                background: #44cc44;
+                transition:
+                    width 0.12s linear,
+                    background 0.3s;
+                position: relative;
+            }
+            #life-bar::after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 4px,
+                    rgba(255, 255, 255, 0.07) 4px,
+                    rgba(255, 255, 255, 0.07) 8px
+                );
+            }
+            #score {
+                color: #ffff66;
+                font-size: 15px;
+                font-weight: bold;
+                min-width: 90px;
+                text-align: right;
+            }
+            canvas {
+                display: block;
+                width: 100%;
+                aspect-ratio: 1 / 1;
+                border: 3px solid #555;
+                image-rendering: pixelated;
+                image-rendering: crisp-edges;
+                outline: none;
+                touch-action: none;
+            }
+            #dpad {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                padding: 14px 0 20px;
+                width: 100%;
+                max-width: 640px;
+                background: #1a1a2e;
+            }
+            .dpad-row {
+                display: flex;
+                gap: 4px;
+            }
+            .dpad-btn {
+                width: 68px;
+                height: 68px;
+                background: #252540;
+                border: 3px solid #555;
+                border-radius: 8px;
+                color: #ccc;
+                font-size: 26px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                -webkit-tap-highlight-color: transparent;
+                touch-action: none;
+                user-select: none;
+            }
+            .dpad-btn:active,
+            .dpad-btn.pressed {
+                background: #2a6644;
+                border-color: #55aa77;
+                color: #fff;
+            }
+            .dpad-spacer {
+                width: 68px;
+                height: 68px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="game-container">
+            <div id="hud">
+                <span class="hud-label">&#9829; LIV</span>
+                <div id="life-bar-wrap"><div id="life-bar"></div></div>
+                <div id="score">0 poäng</div>
+            </div>
+            <canvas
+                id="canvas"
+                width="640"
+                height="640"
+                tabindex="0"></canvas>
+        </div>
+        <div id="dpad">
+            <div class="dpad-row">
+                <div class="dpad-spacer"></div>
+                <button
+                    class="dpad-btn"
+                    id="btn-up">
+                    ▲
+                </button>
+                <div class="dpad-spacer"></div>
+            </div>
+            <div class="dpad-row">
+                <button
+                    class="dpad-btn"
+                    id="btn-left">
+                    ◀
+                </button>
+                <div class="dpad-spacer"></div>
+                <button
+                    class="dpad-btn"
+                    id="btn-right">
+                    ▶
+                </button>
+            </div>
+            <div class="dpad-row">
+                <div class="dpad-spacer"></div>
+                <button
+                    class="dpad-btn"
+                    id="btn-down">
+                    ▼
+                </button>
+                <div class="dpad-spacer"></div>
+            </div>
+        </div>
+
+        <script>
+            // ─────────────────────────────────────────────────────────────────────────────
+            // FRASSE THE BUNNY
+            // ─────────────────────────────────────────────────────────────────────────────
+
+            const canvas = document.getElementById("canvas");
+            const ctx = canvas.getContext("2d");
+            const lifeEl = document.getElementById("life-bar");
+            const scoreEl = document.getElementById("score");
+            ctx.imageSmoothingEnabled = false;
+
+            const W = 640,
+                H = 640;
+
+            // ── Constants ─────────────────────────────────────────────────────────────────
+            const BUNNY_SPEED = 155; // px/s
+            const LIFE_DRAIN = 4; // % per second
+            const CARROT_LIFETIME = 7; // seconds
+            const CARROT_INTERVAL = 2.4; // seconds between spawns
+            const MAX_CARROTS = 6;
+            const FOX_SPEED_BASE = 65; // px/s (scales with score)
+
+            // ── Game state ────────────────────────────────────────────────────────────────
+            let gstate = "start"; // 'start' | 'playing' | 'gameover'
+            let score, life, carrots, fox, particles;
+            let carrotTimer, foxTimer, foxWarning, monsteraWarning;
+            let cage, trophyCages;
+            let btnHover = false;
+            let lastTime = 0;
+
+            const keys = {};
+
+            const bunny = {
+                x: 0,
+                y: 0,
+                w: 32,
+                h: 38,
+                speed: BUNNY_SPEED,
+                facing: "down",
+                animFrame: 0,
+                animTimer: 0,
+                moving: false,
+                dizzy: 0,
+                hasCage: false,
+            };
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // PRE-RENDER GRASS
+            // ─────────────────────────────────────────────────────────────────────────────
+            const grassCvs = document.createElement("canvas");
+            grassCvs.width = W;
+            grassCvs.height = H;
+            const gc = grassCvs.getContext("2d");
+
+            (function buildGrass() {
+                gc.fillStyle = "#4a8c3f";
+                gc.fillRect(0, 0, W, H);
+
+                gc.fillStyle = "#3d7534";
+                for (let i = 0; i < 260; i++) {
+                    gc.fillRect((i * 127 + 33) % W, (i * 89 + 57) % H, 8 + ((i * 13) % 24), 4 + ((i * 7) % 10));
+                }
+                gc.fillStyle = "#5cb84e";
+                for (let i = 0; i < 130; i++) {
+                    gc.fillRect((i * 211 + 100) % W, (i * 173 + 200) % H, 3, 6);
+                }
+                const fc = ["#fffacd", "#ffddee", "#ffffff"];
+                for (let i = 0; i < 35; i++) {
+                    gc.fillStyle = fc[i % 3];
+                    gc.fillRect((i * 317 + 50) % W, (i * 263 + 70) % H, 4, 4);
+                }
+            })();
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // SPRITE DRAWING
+            // ─────────────────────────────────────────────────────────────────────────────
+
+            function drawBunny(c, x, y, facing, frame, moving) {
+                x = x | 0;
+                y = y | 0;
+                const bob = moving && frame === 1 ? 1 : 0;
+
+                // Shadow
+                c.fillStyle = "rgba(0,0,0,0.18)";
+                c.fillRect(x + 5, y + 38, 24, 5);
+
+                // Ears
+                c.fillStyle = "#dcdcdc";
+                c.fillRect(x + 7, y - 14, 8, 18);
+                c.fillRect(x + 19, y - 14, 8, 18);
+                c.fillStyle = "#ffb3c6";
+                c.fillRect(x + 9, y - 12, 4, 14);
+                c.fillRect(x + 21, y - 12, 4, 14);
+                // Ear tips slightly darker
+                c.fillStyle = "#c8c8c8";
+                c.fillRect(x + 7, y - 14, 8, 3);
+                c.fillRect(x + 19, y - 14, 8, 3);
+
+                // Body
+                c.fillStyle = "#f0f0f0";
+                c.fillRect(x + 4, y + 14, 26, 20);
+                c.fillStyle = "#fafafa";
+                c.fillRect(x + 6, y + 16, 12, 16);
+
+                // Head
+                c.fillStyle = "#f5f5f5";
+                c.fillRect(x + 5, y + 0, 24, 18);
+                c.fillStyle = "#ffffff";
+                c.fillRect(x + 7, y + 2, 9, 9);
+
+                // Belly
+                c.fillStyle = "#ffffff";
+                c.fillRect(x + 10, y + 17, 14, 14);
+
+                // Eyes
+                c.fillStyle = "#222";
+                if (facing === "left") {
+                    c.fillRect(x + 6, y + 5, 4, 4);
+                    c.fillStyle = "#fff";
+                    c.fillRect(x + 7, y + 5, 1, 2);
+                } else if (facing === "right") {
+                    c.fillRect(x + 24, y + 5, 4, 4);
+                    c.fillStyle = "#fff";
+                    c.fillRect(x + 25, y + 5, 1, 2);
+                } else {
+                    c.fillRect(x + 9, y + 5, 4, 4);
+                    c.fillRect(x + 21, y + 5, 4, 4);
+                    c.fillStyle = "#fff";
+                    c.fillRect(x + 10, y + 5, 1, 2);
+                    c.fillRect(x + 22, y + 5, 1, 2);
+                }
+
+                // Nose
+                c.fillStyle = "#ffb3c6";
+                c.fillRect(x + 13, y + 12, 6, 3);
+                c.fillStyle = "#ff8fad";
+                c.fillRect(x + 14, y + 13, 4, 2);
+
+                // Whiskers
+                c.fillStyle = "rgba(100,100,100,0.6)";
+                if (facing !== "right") {
+                    c.fillRect(x + 1, y + 12, 9, 1);
+                    c.fillRect(x + 2, y + 14, 8, 1);
+                }
+                if (facing !== "left") {
+                    c.fillRect(x + 24, y + 12, 9, 1);
+                    c.fillRect(x + 24, y + 14, 8, 1);
+                }
+
+                // Tail
+                c.fillStyle = "#ffffff";
+                c.fillRect(x + 27, y + 20, 7, 8);
+                c.fillStyle = "#e0e0e0";
+                c.fillRect(x + 28, y + 21, 5, 6);
+
+                // Front legs
+                c.fillStyle = "#e4e4e4";
+                c.fillRect(x + 5, y + 30 + bob, 9, 8);
+                c.fillRect(x + 20, y + 30 - bob, 9, 8);
+                // Paws
+                c.fillStyle = "#ffb3c6";
+                c.fillRect(x + 5, y + 37 + bob, 9, 2);
+                c.fillRect(x + 20, y + 37 - bob, 9, 2);
+            }
+
+            function drawCarrot(c, x, y, golden, lifetime) {
+                x = x | 0;
+                y = y | 0;
+                if (lifetime < 2 && Math.floor(lifetime * 6) % 2 === 0) return;
+
+                c.fillStyle = "rgba(0,0,0,0.18)";
+                c.fillRect(x + 3, y + 22, 16, 4);
+
+                if (golden) {
+                    // Glow
+                    c.fillStyle = "rgba(255,210,0,0.22)";
+                    c.fillRect(x - 7, y - 7, 36, 40);
+
+                    c.fillStyle = "#ffd700";
+                    c.fillRect(x + 4, y + 6, 14, 16);
+                    c.fillStyle = "#ffec6e";
+                    c.fillRect(x + 4, y + 6, 5, 16);
+                    c.fillStyle = "#c8960c";
+                    c.fillRect(x + 15, y + 6, 3, 16);
+                    c.fillStyle = "#daa520";
+                    c.fillRect(x + 4, y + 10, 14, 2);
+                    c.fillRect(x + 4, y + 15, 14, 2);
+                    // Tip
+                    c.fillStyle = "#b8860b";
+                    c.fillRect(x + 6, y + 21, 10, 4);
+                    c.fillRect(x + 8, y + 24, 6, 3);
+                    c.fillRect(x + 10, y + 26, 2, 2);
+                    // Leaves
+                    c.fillStyle = "#228b22";
+                    c.fillRect(x + 3, y - 2, 4, 10);
+                    c.fillRect(x + 8, y - 5, 5, 12);
+                    c.fillRect(x + 14, y - 2, 4, 10);
+                    c.fillStyle = "#32cd32";
+                    c.fillRect(x + 4, y, 2, 6);
+                    c.fillRect(x + 9, y - 3, 3, 8);
+                    c.fillRect(x + 15, y, 2, 6);
+                    // Sparkle
+                    const t = Math.floor(Date.now() / 170) % 4;
+                    const sp = [
+                        [x - 2, y + 2],
+                        [x + 20, y + 4],
+                        [x + 0, y + 20],
+                        [x + 18, y + 18],
+                    ];
+                    c.fillStyle = "#fff";
+                    c.fillRect(sp[t][0], sp[t][1], 3, 3);
+                    c.fillRect(sp[t][0] + 1, sp[t][1] - 2, 1, 7);
+                    c.fillRect(sp[t][0] - 2, sp[t][1] + 1, 7, 1);
+                } else {
+                    c.fillStyle = "#ff8000";
+                    c.fillRect(x + 4, y + 6, 14, 16);
+                    c.fillStyle = "#ffaa44";
+                    c.fillRect(x + 4, y + 6, 5, 16);
+                    c.fillStyle = "#c05800";
+                    c.fillRect(x + 15, y + 6, 3, 16);
+                    c.fillStyle = "#d06000";
+                    c.fillRect(x + 4, y + 10, 14, 2);
+                    c.fillRect(x + 4, y + 15, 14, 2);
+                    // Tip
+                    c.fillStyle = "#e07000";
+                    c.fillRect(x + 6, y + 21, 10, 4);
+                    c.fillRect(x + 8, y + 24, 6, 3);
+                    c.fillRect(x + 10, y + 26, 2, 2);
+                    // Leaves
+                    c.fillStyle = "#2d8c2d";
+                    c.fillRect(x + 3, y - 2, 4, 10);
+                    c.fillRect(x + 8, y - 5, 5, 12);
+                    c.fillRect(x + 14, y - 2, 4, 10);
+                    c.fillStyle = "#3daa3d";
+                    c.fillRect(x + 4, y, 2, 6);
+                    c.fillRect(x + 9, y - 3, 3, 8);
+                    c.fillRect(x + 15, y, 2, 6);
+                }
+            }
+
+            function drawFox(c, x, y, frame) {
+                x = x | 0;
+                y = y | 0;
+                const bob = frame === 1 ? 1 : 0;
+
+                // Shadow
+                c.fillStyle = "rgba(0,0,0,0.22)";
+                c.fillRect(x + 4, y + 38, 32, 5);
+
+                // Tail
+                c.fillStyle = "#cc4400";
+                c.fillRect(x + 28, y + 16, 14, 12);
+                c.fillRect(x + 30, y + 13, 10, 5);
+                c.fillStyle = "#ee6622";
+                c.fillRect(x + 29, y + 17, 7, 8);
+                c.fillStyle = "#ffffff";
+                c.fillRect(x + 33, y + 20, 7, 6);
+
+                // Body
+                c.fillStyle = "#cc4400";
+                c.fillRect(x + 4, y + 14, 26, 22);
+                c.fillStyle = "#ee6622";
+                c.fillRect(x + 6, y + 16, 14, 18);
+
+                // Head
+                c.fillStyle = "#dd5511";
+                c.fillRect(x + 5, y + 2, 22, 18);
+                c.fillStyle = "#ee6622";
+                c.fillRect(x + 7, y + 4, 12, 10);
+
+                // Ears (pointy)
+                c.fillStyle = "#cc4400";
+                c.fillRect(x + 5, y - 8, 8, 14);
+                c.fillRect(x + 19, y - 8, 8, 14);
+                c.fillStyle = "#ff9988";
+                c.fillRect(x + 7, y - 6, 4, 10);
+                c.fillRect(x + 21, y - 6, 4, 10);
+
+                // White muzzle
+                c.fillStyle = "#fff";
+                c.fillRect(x + 7, y + 9, 6, 8);
+                c.fillRect(x + 19, y + 9, 6, 8);
+                c.fillRect(x + 10, y + 9, 12, 8);
+
+                // Eyes (red and menacing)
+                c.fillStyle = "#111";
+                c.fillRect(x + 8, y + 4, 5, 5);
+                c.fillRect(x + 19, y + 4, 5, 5);
+                c.fillStyle = "#ff2200";
+                c.fillRect(x + 9, y + 4, 4, 4);
+                c.fillRect(x + 20, y + 4, 4, 4);
+                c.fillStyle = "#ff9900";
+                c.fillRect(x + 9, y + 5, 2, 2);
+                c.fillRect(x + 20, y + 5, 2, 2);
+
+                // Nose
+                c.fillStyle = "#111";
+                c.fillRect(x + 14, y + 12, 4, 4);
+                c.fillStyle = "#333";
+                c.fillRect(x + 15, y + 12, 2, 2);
+
+                // Legs
+                c.fillStyle = "#cc4400";
+                c.fillRect(x + 5, y + 32 + bob, 9, 8);
+                c.fillRect(x + 19, y + 32 - bob, 9, 8);
+                c.fillStyle = "#fff";
+                c.fillRect(x + 5, y + 38 + bob, 9, 2);
+                c.fillRect(x + 19, y + 38 - bob, 9, 2);
+            }
+
+            function drawCage(c, x, y, glow) {
+                x = x | 0;
+                y = y | 0;
+                if (glow) {
+                    const g = (Math.sin(Date.now() / 220) * 0.5 + 0.5) * 0.4;
+                    c.fillStyle = `rgba(255,220,0,${g})`;
+                    c.fillRect(x - 6, y - 10, 42, 46);
+                }
+                // Shadow
+                c.fillStyle = "rgba(0,0,0,0.22)";
+                c.fillRect(x + 3, y + 27, 26, 4);
+                // Hook
+                c.fillStyle = "#888";
+                c.fillRect(x + 11, y - 6, 6, 7);
+                c.fillRect(x + 9, y - 9, 10, 4);
+                c.fillStyle = "#bbb";
+                c.fillRect(x + 12, y - 8, 3, 5);
+                // Interior
+                c.fillStyle = "#111";
+                c.fillRect(x + 2, y + 4, 24, 22);
+                // Top & bottom frames
+                c.fillStyle = "#888";
+                c.fillRect(x, y + 2, 28, 4);
+                c.fillRect(x, y + 24, 28, 4);
+                // Left & right frames
+                c.fillRect(x, y + 2, 3, 26);
+                c.fillRect(x + 25, y + 2, 3, 26);
+                // Vertical bars
+                for (let i = 1; i <= 3; i++) {
+                    c.fillStyle = "#777";
+                    c.fillRect(x + 2 + i * 6, y + 2, 3, 26);
+                    c.fillStyle = "#aaa";
+                    c.fillRect(x + 2 + i * 6, y + 2, 1, 26);
+                }
+                // Top highlights
+                c.fillStyle = "#bbb";
+                c.fillRect(x, y + 2, 28, 2);
+                c.fillRect(x, y + 2, 2, 26);
+            }
+
+            function drawTrophyCage(c, x, y) {
+                drawCage(c, x, y, false);
+                // Tiny trapped fox inside
+                c.fillStyle = "#cc4400";
+                c.fillRect(x + 7, y + 10, 14, 8);
+                c.fillRect(x + 9, y + 7, 10, 6);
+                c.fillStyle = "#ff2200";
+                c.fillRect(x + 10, y + 8, 2, 2);
+                c.fillRect(x + 16, y + 8, 2, 2);
+                c.fillStyle = "#ee6622";
+                c.fillRect(x + 8, y + 17, 4, 3); // tail curl
+            }
+
+            function drawMiniCage(c, x, y) {
+                x = x | 0;
+                y = y | 0;
+                c.fillStyle = "#777";
+                c.fillRect(x, y, 14, 2);
+                c.fillRect(x, y + 9, 14, 2);
+                c.fillRect(x, y, 2, 11);
+                c.fillRect(x + 12, y, 2, 11);
+                c.fillStyle = "#555";
+                c.fillRect(x + 4, y, 2, 11);
+                c.fillRect(x + 8, y, 2, 11);
+                c.fillStyle = "#888";
+                c.fillRect(x + 5, y - 3, 4, 3);
+            }
+
+            function drawMonstera(c, x, y, lifetime) {
+                x = x | 0;
+                y = y | 0;
+                if (lifetime < 2 && Math.floor(lifetime * 6) % 2 === 0) return;
+
+                // Shadow
+                c.fillStyle = "rgba(0,0,0,0.2)";
+                c.fillRect(x + 4, y + 30, 20, 4);
+
+                // Pot rim + body
+                c.fillStyle = "#704212";
+                c.fillRect(x + 7, y + 21, 14, 3);
+                c.fillStyle = "#8b5a2b";
+                c.fillRect(x + 8, y + 23, 12, 8);
+                c.fillStyle = "#b07a3a";
+                c.fillRect(x + 8, y + 24, 5, 6);
+
+                // Stem
+                c.fillStyle = "#2a6012";
+                c.fillRect(x + 13, y + 12, 2, 10);
+
+                // Left leaf
+                c.fillStyle = "#1a7a10";
+                c.fillRect(x + 2, y + 2, 9, 4);
+                c.fillRect(x + 0, y + 5, 13, 11);
+                c.fillRect(x + 1, y + 4, 13, 4);
+                // Notches (edge splits)
+                c.fillStyle = "#0d5008";
+                c.fillRect(x + 0, y + 9, 2, 4);
+                c.fillRect(x + 4, y + 2, 2, 2);
+                // Fenestration (lighter holes = characteristic monstera look)
+                c.fillStyle = "#2da018";
+                c.fillRect(x + 3, y + 6, 3, 3);
+                c.fillRect(x + 9, y + 10, 3, 3);
+                // Vein + shine
+                c.fillStyle = "#0a4006";
+                c.fillRect(x + 7, y + 3, 2, 13);
+                c.fillStyle = "#30b020";
+                c.fillRect(x + 3, y + 4, 3, 2);
+
+                // Right leaf (different shade)
+                c.fillStyle = "#157010";
+                c.fillRect(x + 14, y + 2, 12, 4);
+                c.fillRect(x + 12, y + 5, 14, 10);
+                c.fillRect(x + 14, y + 14, 8, 3);
+                // Notches
+                c.fillStyle = "#0a4808";
+                c.fillRect(x + 24, y + 6, 2, 4);
+                c.fillRect(x + 18, y + 2, 2, 2);
+                // Fenestration
+                c.fillStyle = "#28a815";
+                c.fillRect(x + 15, y + 7, 3, 3);
+                c.fillRect(x + 21, y + 10, 3, 3);
+                // Vein + shine
+                c.fillStyle = "#083806";
+                c.fillRect(x + 19, y + 3, 2, 12);
+                c.fillStyle = "#2ab818";
+                c.fillRect(x + 16, y + 3, 3, 2);
+            }
+
+            function drawDizzyStars(c, x, y) {
+                const t = Date.now() / 280;
+                const colors = ["#ffff00", "#ff66ff", "#66ffff"];
+                for (let i = 0; i < 3; i++) {
+                    const angle = t + (i * Math.PI * 2) / 3;
+                    const sx = (x + 16 + Math.cos(angle) * 19) | 0;
+                    const sy = (y - 5 + Math.sin(angle) * 9) | 0;
+                    c.fillStyle = colors[i];
+                    c.fillRect(sx - 1, sy - 3, 2, 6); // vertical bar
+                    c.fillRect(sx - 3, sy - 1, 6, 2); // horizontal bar
+                    c.fillRect(sx - 2, sy - 2, 2, 2); // diagonal corners
+                    c.fillRect(sx + 1, sy - 2, 2, 2);
+                    c.fillRect(sx - 2, sy + 1, 2, 2);
+                    c.fillRect(sx + 1, sy + 1, 2, 2);
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // PARTICLES
+            // ─────────────────────────────────────────────────────────────────────────────
+            function addParticle(x, y, text, color) {
+                particles.push({ x, y, text, color, life: 1.4, vy: -50 });
+            }
+
+            function updateParticles(dt) {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.life -= dt;
+                    p.y += p.vy * dt;
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+            }
+
+            function drawParticles(c) {
+                c.textAlign = "center";
+                for (const p of particles) {
+                    c.globalAlpha = Math.min(1, p.life);
+                    c.fillStyle = p.color;
+                    c.font = 'bold 15px "Courier New"';
+                    c.fillText(p.text, p.x, p.y);
+                }
+                c.globalAlpha = 1;
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // HUD
+            // ─────────────────────────────────────────────────────────────────────────────
+            function updateHUD() {
+                lifeEl.style.width = life + "%";
+                if (life > 60) lifeEl.style.background = "#44cc44";
+                else if (life > 30) lifeEl.style.background = "#ffaa00";
+                else lifeEl.style.background = "#ff3333";
+                scoreEl.textContent = score + " poäng";
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // BUTTON HELPER
+            // ─────────────────────────────────────────────────────────────────────────────
+            function drawBtn(label, cy, hover) {
+                const w = 270,
+                    h = 50,
+                    x = W / 2 - w / 2,
+                    y = cy - h / 2;
+                // Drop shadow
+                ctx.fillStyle = "rgba(0,0,0,0.45)";
+                ctx.fillRect(x + 4, y + 4, w, h);
+                // Body
+                ctx.fillStyle = hover ? "#55dd77" : "#33bb55";
+                ctx.fillRect(x, y, w, h);
+                // Top shine
+                ctx.fillStyle = hover ? "#99ffbb" : "#66cc88";
+                ctx.fillRect(x, y, w, 5);
+                // Bottom edge
+                ctx.fillStyle = "#1a6633";
+                ctx.fillRect(x, y + h - 5, w, 5);
+                // Label
+                ctx.fillStyle = "#002211";
+                ctx.font = 'bold 20px "Courier New"';
+                ctx.textAlign = "center";
+                ctx.fillText(label, W / 2, cy + 8);
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // SCREENS
+            // ─────────────────────────────────────────────────────────────────────────────
+            function drawStartScreen() {
+                ctx.drawImage(grassCvs, 0, 0);
+                ctx.fillStyle = "rgba(0,0,18,0.72)";
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.textAlign = "center";
+                ctx.fillStyle = "#88ffaa";
+                ctx.font = 'bold 56px "Courier New"';
+                ctx.fillText("FRASSE", W / 2, 185);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = 'bold 30px "Courier New"';
+                ctx.fillText("THE BUNNY", W / 2, 228);
+
+                drawBunny(ctx, W / 2 - 16, 255, "down", 0, false);
+
+                drawBtn("\u25b6  STARTA SPELET", 370, btnHover);
+
+                ctx.fillStyle = "#bbbbbb";
+                ctx.font = '13px "Courier New"';
+                ctx.fillText("Piltangenter / WASD f\u00f6r att r\u00f6ra Frasse", W / 2, 430);
+                ctx.fillText("F\u00e5nga mor\u00f6tter innan de f\u00f6rsvinner", W / 2, 450);
+                ctx.fillText("Gyllene morot = 10 po\u00e4ng + fullt liv", W / 2, 470);
+                ctx.fillText("Undvik r\u00e4ven \u2014 annars \u00e4r det game over!", W / 2, 490);
+            }
+
+            function drawGameOverScreen() {
+                ctx.drawImage(grassCvs, 0, 0);
+                ctx.fillStyle = "rgba(50,0,0,0.80)";
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.textAlign = "center";
+                ctx.fillStyle = "#ff4444";
+                ctx.font = 'bold 54px "Courier New"';
+                ctx.fillText("GAME OVER", W / 2, 255);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = '26px "Courier New"';
+                ctx.fillText("Slutpoäng: " + score, W / 2, 320);
+
+                const msg =
+                    score < 5
+                        ? "Övning ger färdighet..."
+                        : score < 15
+                          ? "Inte illa, Frasse!"
+                          : score < 30
+                            ? "Bra jobbat!"
+                            : score < 50
+                              ? "Du är kaninmästare!"
+                              : "LEGENDARISK!";
+                ctx.fillStyle = "#ffff88";
+                ctx.font = '20px "Courier New"';
+                ctx.fillText(msg, W / 2, 366);
+
+                drawBtn("\u25b6  SPELA IGEN", 435, btnHover);
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // SPAWN
+            // ─────────────────────────────────────────────────────────────────────────────
+            function spawnCarrot() {
+                if (carrots.length >= MAX_CARROTS) return;
+                const r = Math.random();
+                const type = r < 0.1 ? "golden" : r < 0.35 ? "monstera" : "normal";
+                const m = 52;
+                carrots.push({
+                    x: m + Math.random() * (W - m * 2 - 28),
+                    y: m + Math.random() * (H - m * 2 - 32),
+                    type,
+                    life: CARROT_LIFETIME,
+                    w: 28,
+                    h: 32,
+                });
+            }
+
+            function spawnFox() {
+                const side = Math.floor(Math.random() * 4);
+                let x, y;
+                if (side === 0) {
+                    x = Math.random() * (W - 36);
+                    y = -44;
+                } else if (side === 1) {
+                    x = W + 5;
+                    y = Math.random() * (H - 42);
+                } else if (side === 2) {
+                    x = Math.random() * (W - 36);
+                    y = H + 5;
+                } else {
+                    x = -44;
+                    y = Math.random() * (H - 42);
+                }
+                const speed = FOX_SPEED_BASE + score * 1.1;
+                fox = { x, y, w: 36, h: 44, speed, animFrame: 0, animTimer: 0, lifetime: 20, cageSpawned: false };
+                foxWarning = 2.8;
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // COLLISION
+            // ─────────────────────────────────────────────────────────────────────────────
+            function overlaps(ax, ay, aw, ah, bx, by, bw, bh) {
+                return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // UPDATE
+            // ─────────────────────────────────────────────────────────────────────────────
+            function update(dt) {
+                // ── Move bunny ──
+                let dx = 0,
+                    dy = 0;
+                if (keys["ArrowLeft"] || keys["a"] || keys["A"]) dx -= 1;
+                if (keys["ArrowRight"] || keys["d"] || keys["D"]) dx += 1;
+                if (keys["ArrowUp"] || keys["w"] || keys["W"]) dy -= 1;
+                if (keys["ArrowDown"] || keys["s"] || keys["S"]) dy += 1;
+                if (dx && dy) {
+                    dx *= 0.7071;
+                    dy *= 0.7071;
+                }
+
+                bunny.moving = !!(dx || dy);
+                if (dx < 0) bunny.facing = "left";
+                else if (dx > 0) bunny.facing = "right";
+                else if (dy < 0) bunny.facing = "up";
+                else if (dy > 0) bunny.facing = "down";
+
+                bunny.x = Math.max(0, Math.min(W - bunny.w, bunny.x + dx * bunny.speed * dt));
+                bunny.y = Math.max(6, Math.min(H - bunny.h, bunny.y + dy * bunny.speed * dt));
+
+                if (bunny.moving) {
+                    bunny.animTimer += dt;
+                    if (bunny.animTimer > 0.14) {
+                        bunny.animTimer = 0;
+                        bunny.animFrame ^= 1;
+                    }
+                } else {
+                    bunny.animFrame = 0;
+                }
+
+                // ── Life drain ──
+                life = Math.max(0, life - LIFE_DRAIN * dt);
+                if (life <= 0) {
+                    gstate = "gameover";
+                    return;
+                }
+
+                // ── Spawn carrots ──
+                carrotTimer -= dt;
+                if (carrotTimer <= 0) {
+                    spawnCarrot();
+                    carrotTimer = CARROT_INTERVAL + Math.random() * 1.5;
+                }
+
+                // ── Emergency golden carrot when life ≤ 10% ──
+                if (life <= 10 && !carrots.some((c) => c.type === "golden")) {
+                    const m = 52;
+                    carrots.push({
+                        x: m + Math.random() * (W - m * 2 - 28),
+                        y: m + Math.random() * (H - m * 2 - 32),
+                        type: "golden",
+                        life: CARROT_LIFETIME,
+                        w: 28,
+                        h: 32,
+                    });
+                }
+
+                // ── Dizzy timer ──
+                if (bunny.dizzy > 0) {
+                    bunny.dizzy -= dt;
+                    if (bunny.dizzy <= 0) {
+                        bunny.dizzy = 0;
+                        bunny.speed = BUNNY_SPEED;
+                    }
+                }
+                if (monsteraWarning > 0) monsteraWarning -= dt;
+
+                // ── Update / collect carrots ──
+                const pad = 10;
+                for (let i = carrots.length - 1; i >= 0; i--) {
+                    const c = carrots[i];
+                    c.life -= dt;
+                    if (c.life <= 0) {
+                        carrots.splice(i, 1);
+                        continue;
+                    }
+
+                    if (
+                        overlaps(bunny.x + pad, bunny.y + pad, bunny.w - pad * 2, bunny.h - pad * 2, c.x, c.y, c.w, c.h)
+                    ) {
+                        if (c.type === "golden") {
+                            score += 10;
+                            life = 100;
+                            addParticle(c.x + 11, c.y, "+10 ★", "#ffd700");
+                        } else if (c.type === "monstera") {
+                            bunny.dizzy = 5;
+                            bunny.speed = BUNNY_SPEED / 2;
+                            monsteraWarning = 4;
+                        } else {
+                            score += 1;
+                            life = Math.min(100, life + 10);
+                            addParticle(c.x + 11, c.y, "+1", "#ffffff");
+                        }
+                        carrots.splice(i, 1);
+                    }
+                }
+
+                // ── Fox ──
+                foxTimer -= dt;
+                if (foxTimer <= 0 && !fox && score >= 3) {
+                    spawnFox();
+                    foxTimer = 13 + Math.random() * 10;
+                }
+
+                if (fox) {
+                    fox.lifetime -= dt;
+                    const retreating = fox.lifetime <= 10;
+
+                    // ── Cage: spawn 5s after fox (lifetime=15), despawn 5s before fox gone (lifetime=5) ──
+                    if (!fox.cageSpawned && fox.lifetime <= 15) {
+                        fox.cageSpawned = true;
+                        const m = 60;
+                        cage = {
+                            x: m + Math.random() * (W - m * 2 - 28),
+                            y: m + Math.random() * (H - m * 2 - 28),
+                            w: 28,
+                            h: 28,
+                        };
+                    }
+                    if (cage && fox.lifetime <= 5) cage = null;
+
+                    // ── Catch fox with cage → 100p + trophy (works in any phase) ──
+                    if (
+                        bunny.hasCage &&
+                        overlaps(
+                            bunny.x + 4,
+                            bunny.y + 4,
+                            bunny.w - 8,
+                            bunny.h - 8,
+                            fox.x + 4,
+                            fox.y + 4,
+                            fox.w - 8,
+                            fox.h - 8,
+                        )
+                    ) {
+                        score += 100;
+                        addParticle(fox.x + 18, fox.y, "+100!", "#ffd700");
+                        addParticle(fox.x + 18, fox.y + 18, "F\u00c5NGAD!", "#ff8800");
+                        trophyCages.push({ x: fox.x | 0, y: fox.y | 0 });
+                        bunny.hasCage = false;
+                        fox = null;
+                        cage = null;
+                        foxTimer = 25 + Math.random() * 10;
+                    }
+
+                    if (fox) {
+                        let fdx, fdy;
+                        if (retreating) {
+                            fdx = fox.x - bunny.x;
+                            fdy = fox.y - bunny.y;
+                        } else {
+                            fdx = bunny.x - fox.x;
+                            fdy = bunny.y - fox.y;
+                        }
+                        const dist = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+                        const spd = retreating ? fox.speed * 1.4 : fox.speed;
+                        fox.x += (fdx / dist) * spd * dt;
+                        fox.y += (fdy / dist) * spd * dt;
+
+                        fox.animTimer += dt;
+                        if (fox.animTimer > 0.17) {
+                            fox.animTimer = 0;
+                            fox.animFrame ^= 1;
+                        }
+
+                        if (
+                            !retreating &&
+                            overlaps(
+                                bunny.x + 6,
+                                bunny.y + 6,
+                                bunny.w - 12,
+                                bunny.h - 12,
+                                fox.x + 6,
+                                fox.y + 6,
+                                fox.w - 12,
+                                fox.h - 12,
+                            )
+                        ) {
+                            gstate = "gameover";
+                            return;
+                        }
+
+                        const offScreen = fox.x < -80 || fox.x > W + 80 || fox.y < -80 || fox.y > H + 80;
+                        if (fox.lifetime <= 0 || (retreating && offScreen)) {
+                            cage = null; // ground cage gone with the fox
+                            bunny.hasCage = false; // carried cage also disappears
+                            fox = null;
+                            foxTimer = 28 + Math.random() * 15;
+                        }
+                    }
+                }
+
+                // ── Cage pickup ──
+                if (
+                    cage &&
+                    overlaps(bunny.x + 6, bunny.y + 6, bunny.w - 12, bunny.h - 12, cage.x, cage.y, cage.w, cage.h)
+                ) {
+                    bunny.hasCage = true;
+                    cage = null;
+                }
+
+                if (foxWarning > 0) foxWarning -= dt;
+
+                updateParticles(dt);
+                updateHUD();
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // RENDER
+            // ─────────────────────────────────────────────────────────────────────────────
+            function render() {
+                ctx.drawImage(grassCvs, 0, 0);
+
+                // Trophy cages (permanent, with fox inside)
+                for (const tc of trophyCages) drawTrophyCage(ctx, tc.x, tc.y);
+
+                // Carrots / monstera
+                for (const c of carrots) {
+                    if (c.type === "monstera") drawMonstera(ctx, c.x, c.y, c.life);
+                    else drawCarrot(ctx, c.x, c.y, c.type === "golden", c.life);
+                }
+
+                // Ground cage (glows when Frasse doesn't have it yet)
+                if (cage) drawCage(ctx, cage.x, cage.y, !bunny.hasCage);
+
+                // Fox
+                if (fox) drawFox(ctx, fox.x, fox.y, fox.animFrame);
+
+                // Bunny
+                drawBunny(ctx, bunny.x, bunny.y, bunny.facing, bunny.animFrame, bunny.moving);
+
+                // Cage carried beside Frasse (clearly visible with glow)
+                if (bunny.hasCage) drawCage(ctx, bunny.x + bunny.w + 2, bunny.y + 4, true);
+
+                // Dizzy stars around head
+                if (bunny.dizzy > 0) drawDizzyStars(ctx, bunny.x, bunny.y);
+
+                // Particles
+                drawParticles(ctx);
+
+                // Low-life red pulse
+                if (life < 15) {
+                    const pulse = (Math.sin(Date.now() / 180) * 0.5 + 0.5) * 0.18;
+                    ctx.fillStyle = `rgba(220,0,0,${pulse})`;
+                    ctx.fillRect(0, 0, W, H);
+                }
+
+                // Warning banner (fox takes priority over monstera)
+                if (foxWarning > 0 || monsteraWarning > 0) {
+                    const alpha = Math.min(1, Math.max(foxWarning, monsteraWarning));
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = "rgba(0,0,0,0.65)";
+                    ctx.fillRect(W / 2 - 240, 14, 480, 38);
+                    ctx.textAlign = "center";
+                    if (foxWarning > 0) {
+                        ctx.fillStyle = "#ff2200";
+                        ctx.font = 'bold 22px "Courier New"';
+                        ctx.fillText("\u26a0 R\u00c4VEN KOMMER!", W / 2, 40);
+                    } else {
+                        ctx.fillStyle = "#44ff44";
+                        ctx.font = 'bold 15px "Courier New"';
+                        ctx.fillText("\u26a0 \u00c5h, nej... Frasse \u00e5t en monstera", W / 2, 40);
+                    }
+                    ctx.globalAlpha = 1;
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // GAME FLOW
+            // ─────────────────────────────────────────────────────────────────────────────
+            function startGame() {
+                gstate = "playing";
+                score = 0;
+                life = 100;
+                carrots = [];
+                particles = [];
+                fox = null;
+                carrotTimer = 1.0;
+                foxTimer = 15;
+                foxWarning = 0;
+                bunny.x = W / 2 - 16;
+                bunny.y = H / 2 - 16;
+                bunny.facing = "down";
+                bunny.animFrame = 0;
+                bunny.dizzy = 0;
+                bunny.speed = BUNNY_SPEED;
+                bunny.hasCage = false;
+                cage = null;
+                trophyCages = [];
+                monsteraWarning = 0;
+                updateHUD();
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // INPUT
+            // ─────────────────────────────────────────────────────────────────────────────
+            window.addEventListener("keydown", (e) => {
+                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                    e.preventDefault();
+                }
+                keys[e.key] = true;
+            });
+            window.addEventListener("keyup", (e) => {
+                keys[e.key] = false;
+            });
+
+            // Button Y centers (matches drawBtn calls)
+            const BTN_START_CY = 370;
+            const BTN_OVER_CY = 435;
+            const BTN_HALF_W = 135;
+            const BTN_HALF_H = 25;
+
+            function canvasCoords(clientX, clientY) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    mx: (clientX - rect.left) * (canvas.width / rect.width),
+                    my: (clientY - rect.top) * (canvas.height / rect.height),
+                };
+            }
+
+            function tryStartBtn(mx, my) {
+                const cy = gstate === "start" ? BTN_START_CY : BTN_OVER_CY;
+                if (
+                    (gstate === "start" || gstate === "gameover") &&
+                    Math.abs(mx - W / 2) < BTN_HALF_W &&
+                    Math.abs(my - cy) < BTN_HALF_H
+                ) {
+                    startGame();
+                }
+            }
+
+            canvas.addEventListener("click", (e) => {
+                canvas.focus();
+                const { mx, my } = canvasCoords(e.clientX, e.clientY);
+                tryStartBtn(mx, my);
+            });
+
+            canvas.addEventListener(
+                "touchstart",
+                (e) => {
+                    e.preventDefault();
+                    canvas.focus();
+                    const t = e.touches[0];
+                    const { mx, my } = canvasCoords(t.clientX, t.clientY);
+                    tryStartBtn(mx, my);
+                },
+                { passive: false },
+            );
+
+            canvas.addEventListener("mousemove", (e) => {
+                const { mx, my } = canvasCoords(e.clientX, e.clientY);
+                const cy = gstate === "start" ? BTN_START_CY : BTN_OVER_CY;
+                const over =
+                    (gstate === "start" || gstate === "gameover") &&
+                    Math.abs(mx - W / 2) < BTN_HALF_W &&
+                    Math.abs(my - cy) < BTN_HALF_H;
+                if (over !== btnHover) btnHover = over;
+                canvas.style.cursor = over ? "pointer" : "default";
+            });
+
+            // D-pad touch/mouse controls
+            (function setupDpad() {
+                const map = {
+                    "btn-up": "ArrowUp",
+                    "btn-down": "ArrowDown",
+                    "btn-left": "ArrowLeft",
+                    "btn-right": "ArrowRight",
+                };
+                for (const [id, key] of Object.entries(map)) {
+                    const btn = document.getElementById(id);
+                    const press = (e) => {
+                        e.preventDefault();
+                        keys[key] = true;
+                        btn.classList.add("pressed");
+                    };
+                    const release = (e) => {
+                        e.preventDefault();
+                        keys[key] = false;
+                        btn.classList.remove("pressed");
+                    };
+                    btn.addEventListener("touchstart", press, { passive: false });
+                    btn.addEventListener("touchend", release, { passive: false });
+                    btn.addEventListener("touchcancel", release, { passive: false });
+                    btn.addEventListener("mousedown", press);
+                    btn.addEventListener("mouseup", release);
+                    btn.addEventListener("mouseleave", release);
+                }
+            })();
+
+            // Focus canvas so keyboard works
+            canvas.focus();
+
+            // ─────────────────────────────────────────────────────────────────────────────
+            // MAIN LOOP
+            // ─────────────────────────────────────────────────────────────────────────────
+            function loop(ts) {
+                const dt = Math.min((ts - lastTime) / 1000, 0.05);
+                lastTime = ts;
+
+                if (gstate === "playing") {
+                    update(dt);
+                    render();
+                } else if (gstate === "start") {
+                    drawStartScreen();
+                } else if (gstate === "gameover") {
+                    drawGameOverScreen();
+                }
+
+                requestAnimationFrame(loop);
+            }
+
+            requestAnimationFrame((ts) => {
+                lastTime = ts;
+                requestAnimationFrame(loop);
+            });
+        </script>
+    </body>
 </html>
