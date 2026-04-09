@@ -798,7 +798,9 @@
                     x = -44;
                     y = Math.random() * (H - 42);
                 }
-                const speed = FOX_SPEED_BASE + score * 1.1;
+
+                const speed = FOX_SPEED_BASE + score * 0.25;
+
                 fox = { x, y, w: 36, h: 44, speed, animFrame: 0, animTimer: 0, lifetime: 20, cageSpawned: false };
                 foxWarning = 2.8;
             }
