@@ -206,12 +206,14 @@
             const CARROT_INTERVAL = 2.4; // seconds between spawns
             const MAX_CARROTS = 6;
             const FOX_SPEED_BASE = 65; // px/s (scales with score)
+            const PORTAL_MIN_DIST = 220; // px between portal centers
 
             // ── Game state ────────────────────────────────────────────────────────────────
             let gstate = "start"; // 'start' | 'playing' | 'gameover'
             let score, life, carrots, fox, particles;
             let carrotTimer, foxTimer, foxWarning, monsteraWarning;
             let cage, trophyCages;
+            let portals;
             let btnHover = false;
             let lastTime = 0;
 
@@ -229,6 +231,7 @@
                 moving: false,
                 dizzy: 0,
                 hasCage: false,
+                portalCooldown: 0,
             };
 
             // ─────────────────────────────────────────────────────────────────────────────
@@ -548,6 +551,53 @@
                 c.fillRect(x + 8, y + 17, 4, 3); // tail curl
             }
 
+            function drawPortal(c, x, y, phase) {
+                x = x | 0;
+                y = y | 0;
+                const t = Date.now() / 400 + phase;
+                const pulse = Math.sin(t) * 0.5 + 0.5;
+
+                // Outer glow
+                c.fillStyle = `rgba(120,0,255,${(0.12 + pulse * 0.14).toFixed(2)})`;
+                c.fillRect(x - 28, y - 10, 56, 20);
+                c.fillRect(x - 24, y - 16, 48, 32);
+                c.fillRect(x - 20, y - 20, 40, 40);
+
+                // Dark rim
+                c.fillStyle = "#1a0030";
+                c.fillRect(x - 24, y - 8, 48, 16);
+                c.fillRect(x - 20, y - 14, 40, 28);
+                c.fillRect(x - 16, y - 18, 32, 36);
+
+                // Void center
+                c.fillStyle = "#000008";
+                c.fillRect(x - 20, y - 6, 40, 12);
+                c.fillRect(x - 16, y - 12, 32, 24);
+                c.fillRect(x - 12, y - 16, 24, 32);
+
+                // Bright inner ring
+                const bright = (155 + pulse * 100) | 0;
+                c.fillStyle = `rgb(${bright},0,255)`;
+                c.fillRect(x - 16, y - 2, 32, 4);
+                c.fillRect(x - 20, y - 2, 4, 4);
+                c.fillRect(x + 16, y - 2, 4, 4);
+                c.fillRect(x - 8, y - 16, 16, 4);
+                c.fillRect(x - 8, y + 12, 16, 4);
+
+                // Spinning particle
+                const angle = t * 2.2;
+                const sx = (x + Math.cos(angle) * 18) | 0;
+                const sy = (y + Math.sin(angle) * 12) | 0;
+                c.fillStyle = "#ffffff";
+                c.fillRect(sx - 1, sy - 1, 3, 3);
+
+                // Portal label (P1 / P2 via phase)
+                c.fillStyle = `rgba(200,150,255,${(0.55 + pulse * 0.3).toFixed(2)})`;
+                c.font = 'bold 10px "Courier New"';
+                c.textAlign = "center";
+                c.fillText(phase === 0 ? "●" : "●", x, y + 28);
+            }
+
             function drawMiniCage(c, x, y) {
                 x = x | 0;
                 y = y | 0;
@@ -809,6 +859,24 @@
                 foxWarning = 2.8;
             }
 
+            function spawnPortals() {
+                const margin = 90;
+                let p1, p2, attempts = 0;
+                do {
+                    p1 = {
+                        x: margin + Math.random() * (W - margin * 2),
+                        y: margin + Math.random() * (H - margin * 2),
+                    };
+                    p2 = {
+                        x: margin + Math.random() * (W - margin * 2),
+                        y: margin + Math.random() * (H - margin * 2),
+                    };
+                    const dx = p1.x - p2.x, dy = p1.y - p2.y;
+                    attempts++;
+                } while (Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2) < PORTAL_MIN_DIST && attempts < 200);
+                return [p1, p2];
+            }
+
             // ─────────────────────────────────────────────────────────────────────────────
             // COLLISION
             // ─────────────────────────────────────────────────────────────────────────────
@@ -849,6 +917,27 @@
                     }
                 } else {
                     bunny.animFrame = 0;
+                }
+
+                // ── Portal cooldown ──
+                if (bunny.portalCooldown > 0) bunny.portalCooldown -= dt;
+
+                // ── Portal teleport (bunny only) ──
+                if (bunny.portalCooldown <= 0) {
+                    const bcx = bunny.x + bunny.w / 2;
+                    const bcy = bunny.y + bunny.h / 2;
+                    for (let pi = 0; pi < 2; pi++) {
+                        const p = portals[pi];
+                        const dx = (bcx - p.x) / 22, dy = (bcy - p.y) / 14;
+                        if (dx * dx + dy * dy <= 1) {
+                            const dest = portals[1 - pi];
+                            bunny.x = dest.x - bunny.w / 2;
+                            bunny.y = dest.y - bunny.h / 2;
+                            bunny.portalCooldown = 0.8;
+                            addParticle(dest.x, dest.y - 20, "✦", "#cc66ff");
+                            break;
+                        }
+                    }
                 }
 
                 // ── Life drain ──
@@ -1037,6 +1126,9 @@
                 // Trophy cages (permanent, with fox inside)
                 for (const tc of trophyCages) drawTrophyCage(ctx, tc.x, tc.y);
 
+                // Portals
+                for (let pi = 0; pi < 2; pi++) drawPortal(ctx, portals[pi].x, portals[pi].y, pi * Math.PI);
+
                 // Carrots / monstera
                 for (const c of carrots) {
                     if (c.type === "monstera") drawMonstera(ctx, c.x, c.y, c.life);
@@ -1108,9 +1200,11 @@
                 bunny.dizzy = 0;
                 bunny.speed = BUNNY_SPEED;
                 bunny.hasCage = false;
+                bunny.portalCooldown = 0;
                 cage = null;
                 trophyCages = [];
                 monsteraWarning = 0;
+                portals = spawnPortals();
                 updateHUD();
             }
 
